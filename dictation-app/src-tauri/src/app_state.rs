@@ -3,8 +3,10 @@ use std::sync::Mutex;
 use serde::Serialize;
 
 use crate::{
+    cleanup::CleanupResult,
     config::AppConfig,
     recorder::{RecorderController, RecordingDetails, RecordingSummary},
+    stt::TranscriptionResult,
 };
 
 pub const SESSION_EVENT: &str = "session-state-changed";
@@ -19,6 +21,12 @@ pub struct SessionSnapshot {
     pub last_recording_duration_ms: Option<u64>,
     pub last_recording_sample_rate: Option<u32>,
     pub last_recording_channels: Option<u16>,
+    pub raw_transcript: Option<String>,
+    pub cleaned_text: Option<String>,
+    pub stt_latency_ms: Option<u64>,
+    pub cleanup_latency_ms: Option<u64>,
+    pub cleanup_model_version: Option<String>,
+    pub used_cleanup_fallback: bool,
 }
 
 pub struct AppState {
@@ -31,6 +39,8 @@ pub struct SessionRuntime {
     pub input_device: Option<String>,
     pub active_recording: Option<RecordingDetails>,
     pub last_recording: Option<RecordingSummary>,
+    pub transcription: Option<TranscriptionResult>,
+    pub cleanup: Option<CleanupResult>,
     pub last_error: Option<String>,
 }
 
@@ -38,6 +48,7 @@ pub enum SessionStatus {
     Idle,
     Recording,
     Transcribing,
+    Cleaning,
     Error,
 }
 
@@ -49,6 +60,8 @@ impl Default for AppState {
                 input_device: None,
                 active_recording: None,
                 last_recording: None,
+                transcription: None,
+                cleanup: None,
                 last_error: None,
             }),
             recorder: RecorderController::new(),
@@ -73,7 +86,11 @@ impl SessionRuntime {
             ),
             SessionStatus::Transcribing => (
                 "transcribing".to_string(),
-                "Recording captured. STT integration is the next milestone.".to_string(),
+                "Transcribing recorded audio with Parakeet.".to_string(),
+            ),
+            SessionStatus::Cleaning => (
+                "cleaning".to_string(),
+                "Sending transcript to the hosted cleanup backend.".to_string(),
             ),
             SessionStatus::Error => (
                 "error".to_string(),
@@ -84,6 +101,8 @@ impl SessionRuntime {
         };
 
         let last_recording = self.last_recording.clone();
+        let transcription = self.transcription.clone();
+        let cleanup = self.cleanup.clone();
 
         SessionSnapshot {
             state,
@@ -98,6 +117,15 @@ impl SessionRuntime {
                 .as_ref()
                 .map(|recording| recording.sample_rate),
             last_recording_channels: last_recording.as_ref().map(|recording| recording.channels),
+            raw_transcript: transcription.as_ref().map(|result| result.transcript.clone()),
+            cleaned_text: cleanup.as_ref().map(|result| result.cleaned_text.clone()),
+            stt_latency_ms: transcription.as_ref().map(|result| result.latency_ms),
+            cleanup_latency_ms: cleanup.as_ref().map(|result| result.latency_ms),
+            cleanup_model_version: cleanup.as_ref().map(|result| result.model_version.clone()),
+            used_cleanup_fallback: cleanup
+                .as_ref()
+                .map(|result| result.used_fallback)
+                .unwrap_or(false),
         }
     }
 }

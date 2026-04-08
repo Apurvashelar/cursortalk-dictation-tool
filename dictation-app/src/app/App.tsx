@@ -22,6 +22,12 @@ const defaultSessionState: SessionState = {
   last_recording_duration_ms: null,
   last_recording_sample_rate: null,
   last_recording_channels: null,
+  raw_transcript: null,
+  cleaned_text: null,
+  stt_latency_ms: null,
+  cleanup_latency_ms: null,
+  cleanup_model_version: null,
+  used_cleanup_fallback: false,
 };
 
 const defaultSttStatus: SttStatus = {
@@ -80,7 +86,7 @@ export function App() {
     } catch (error) {
       setBackendHealth({
         status: "unreachable",
-        endpoint: config?.server_url ?? defaultBackendHealth.endpoint,
+        endpoint: config?.cleanup_url ?? defaultBackendHealth.endpoint,
         healthUrl: config?.health_url ?? defaultBackendHealth.healthUrl,
         message: `Health check could not be completed. ${String(error)}`,
       });

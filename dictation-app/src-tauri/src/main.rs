@@ -1,4 +1,5 @@
 mod app_state;
+mod cleanup;
 mod commands;
 mod config;
 mod recorder;

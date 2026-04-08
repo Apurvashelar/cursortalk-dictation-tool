@@ -184,12 +184,50 @@ export function SetupPage({
         </section>
 
         <section className="card">
-          <h3>STT boundary</h3>
+          <h3>Transcript</h3>
           <div className="status-grid">
             <div className="status-pill" data-status={sttStatus.state}>
               {sttStatus.engine}
             </div>
             <p className="muted">{sttStatus.message}</p>
+          </div>
+
+          <div className="field-grid">
+            <label className="field">
+              <span>Raw transcript</span>
+              <textarea value={sessionState.raw_transcript ?? ""} readOnly />
+            </label>
+            <label className="field">
+              <span>Cleaned text</span>
+              <textarea value={sessionState.cleaned_text ?? ""} readOnly />
+            </label>
+          </div>
+
+          <div className="field-grid">
+            <label className="field">
+              <span>STT latency</span>
+              <input
+                value={
+                  sessionState.stt_latency_ms != null
+                    ? `${sessionState.stt_latency_ms} ms`
+                    : "Not available"
+                }
+                readOnly
+              />
+            </label>
+            <label className="field">
+              <span>Cleanup</span>
+              <input
+                value={
+                  sessionState.cleanup_model_version
+                    ? `${sessionState.used_cleanup_fallback ? "Fallback" : "Remote"} • ${
+                        sessionState.cleanup_model_version
+                      } • ${sessionState.cleanup_latency_ms ?? 0} ms`
+                    : "Not available"
+                }
+                readOnly
+              />
+            </label>
           </div>
         </section>
       </div>

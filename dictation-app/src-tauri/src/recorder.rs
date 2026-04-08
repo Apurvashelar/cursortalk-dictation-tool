@@ -90,7 +90,10 @@ fn start_recording() -> Result<RecorderHandle> {
     let sample_format = supported_config.sample_format();
     let config = supported_config.config();
 
-    let recordings_dir = std::env::temp_dir().join("voiceflow-enterprise-app").join("recordings");
+    let recordings_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("debug-recordings");
     fs::create_dir_all(&recordings_dir).context("failed to create recordings directory")?;
 
     let timestamp = SystemTime::now()

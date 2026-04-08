@@ -12,6 +12,7 @@ This scaffold establishes:
 6. successful frontend build, Rust check, and Tauri `.app` bundle build
 7. Organization-mode backend diagnostics wired through Tauri commands
 8. recording session state, hotkey toggle path, and microphone capture foundation
+9. recorded WAV files now run through Parakeet STT and then into the hosted cleanup path with fallback
 
 ## Current tested status
 
@@ -20,6 +21,7 @@ The following commands have been verified successfully:
 1. `npm run build`
 2. `cargo check`
 3. `npm run tauri -- build --debug`
+4. `python3 dictation-app/scripts/parakeet_transcribe.py --audio ... --model-dir ...`
 
 Current output artifact:
 
@@ -33,18 +35,18 @@ The Tauri bundle target is intentionally set to `app` during early development s
 
 ## Current implementation milestone
 
-Milestone C:
+Milestone D:
 
-1. the app now exposes live recording session state through Tauri commands and events
-2. a global toggle hotkey is registered for starting and stopping recording
-3. microphone capture writes a WAV file to a local temp recordings directory
-4. the STT boundary is represented explicitly so Parakeet integration can land next
+1. recorded WAV files are transcribed by a local Parakeet helper script
+2. raw transcript and cleaned text are surfaced in the app UI
+3. cleanup requests target the hosted `/clean` endpoint
+4. if cleanup is unavailable, the app falls back to raw transcript automatically
 
 ## Immediate next implementation milestone
 
-Milestone D:
+Milestone E:
 
-1. wire the recorded audio into the Parakeet STT path
-2. move session state from `transcribing` placeholder to real transcript output
-3. connect raw transcript output to the remote cleanup request
-4. preserve raw-transcript fallback behavior when cleanup fails
+1. surface the final cleaned text in a paste-ready output flow
+2. add clipboard save / paste / restore
+3. transition from diagnostic UI into real dictation interaction
+4. validate the tunnel-backed `/clean` path during a live session

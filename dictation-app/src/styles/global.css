@@ -18,7 +18,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -173,6 +174,16 @@ button:disabled {
   background: #fafaf8;
 }
 
+.field textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border: 1px solid #d6d6d2;
+  border-radius: 10px;
+  background: #fafaf8;
+  resize: vertical;
+}
+
 .button-row {
   display: flex;
   gap: 10px;
@@ -229,6 +240,11 @@ button:disabled {
 .status-pill[data-status="planned"] {
   background: #eeeeea;
   color: #565656;
+}
+
+.status-pill[data-status="ready"] {
+  background: #e9f5ea;
+  color: #215f2a;
 }
 
 .plain-list,

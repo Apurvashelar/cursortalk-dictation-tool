@@ -1,4 +1,5 @@
 use crate::app_state::{AppState, SessionSnapshot, SessionStatus, SESSION_EVENT};
+use crate::cleanup;
 use crate::config::AppConfig;
 use crate::recorder;
 use crate::stt;
@@ -35,19 +36,19 @@ pub async fn get_backend_health() -> BackendHealth {
     match reqwest::get(&health_url).await {
         Ok(response) if response.status().is_success() => BackendHealth {
             status: "healthy".to_string(),
-            endpoint: config.server_url,
+            endpoint: config.cleanup_url,
             health_url,
             message: "Tunnel endpoint is reachable.".to_string(),
         },
         Ok(response) => BackendHealth {
             status: "degraded".to_string(),
-            endpoint: config.server_url,
+            endpoint: config.cleanup_url,
             health_url,
             message: format!("Health check returned HTTP {}.", response.status()),
         },
         Err(error) => BackendHealth {
             status: "unreachable".to_string(),
-            endpoint: config.server_url,
+            endpoint: config.cleanup_url,
             health_url,
             message: format!(
                 "Could not reach the forwarded backend. Start or verify the SSH tunnel. ({error})"
@@ -81,11 +82,11 @@ pub fn start_recording(
 }
 
 #[tauri::command]
-pub fn stop_recording(
+pub async fn stop_recording(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let snapshot = stop_recording_internal(&app, &state)?;
+    let snapshot = stop_recording_internal(&app, &state).await?;
     Ok(snapshot)
 }
 
@@ -103,7 +104,14 @@ pub fn handle_hotkey_toggle(app: &AppHandle) {
         .unwrap_or_else(|_| "error".to_string());
 
     let result = if current_state == "recording" {
-        stop_recording_internal(app, &state)
+        let app_handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let state = app_handle.state::<AppState>();
+            if let Err(error) = stop_recording_internal(&app_handle, &state).await {
+                let _ = update_error_state(&app_handle, &state, error);
+            }
+        });
+        return;
     } else {
         start_recording_internal(app, &state)
     };
@@ -127,6 +135,8 @@ fn start_recording_internal(
         session.status = SessionStatus::Recording;
         session.input_device = Some(details.device_name.clone());
         session.active_recording = Some(details);
+        session.transcription = None;
+        session.cleanup = None;
         session.last_error = None;
         session.snapshot()
     };
@@ -135,7 +145,7 @@ fn start_recording_internal(
     Ok(snapshot)
 }
 
-fn stop_recording_internal(
+async fn stop_recording_internal(
     app: &AppHandle,
     state: &tauri::State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
@@ -155,7 +165,53 @@ fn stop_recording_internal(
     };
 
     emit_session_state(app, &snapshot);
-    Ok(snapshot)
+
+    let recorded_path = snapshot
+        .last_recording_path
+        .clone()
+        .ok_or_else(|| "recording path missing after stop".to_string())?;
+    let config = AppConfig::default();
+
+    let transcription = stt::transcribe_wav(&recorded_path, &config.stt_model_dir)
+        .map_err(|error| error.to_string())?;
+
+    let cleaning_snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+
+        session.transcription = Some(transcription.clone());
+        session.status = SessionStatus::Cleaning;
+        let snapshot = session.snapshot();
+        emit_session_state(app, &snapshot);
+        snapshot
+    };
+
+    let raw_transcript = cleaning_snapshot
+        .raw_transcript
+        .clone()
+        .unwrap_or_default();
+
+    let cleanup_result = match cleanup::clean_text(&config.cleanup_url, &raw_transcript).await {
+        Ok(result) => result,
+        Err(error) => cleanup::fallback_from_raw(&raw_transcript, &error.to_string()),
+    };
+
+    let final_snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+
+        session.cleanup = Some(cleanup_result.clone());
+        session.status = SessionStatus::Idle;
+        session.last_error = None;
+        session.snapshot()
+    };
+
+    emit_session_state(app, &final_snapshot);
+    Ok(final_snapshot)
 }
 
 fn update_error_state(

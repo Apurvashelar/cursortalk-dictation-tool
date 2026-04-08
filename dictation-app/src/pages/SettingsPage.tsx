@@ -34,7 +34,7 @@ export function SettingsPage({
           <div className="field-grid">
             <label className="field">
               <span>Backend URL</span>
-              <input value={config?.server_url ?? "http://127.0.0.1:8080"} readOnly />
+              <input value={config?.cleanup_url ?? "http://127.0.0.1:8080/clean"} readOnly />
             </label>
             <label className="field">
               <span>Mode</span>
@@ -77,6 +77,10 @@ export function SettingsPage({
             <label className="field">
               <span>Session state</span>
               <input value={sessionState.state} readOnly />
+            </label>
+            <label className="field">
+              <span>STT model dir</span>
+              <input value={config?.stt_model_dir ?? "Not configured"} readOnly />
             </label>
           </div>
         </section>
