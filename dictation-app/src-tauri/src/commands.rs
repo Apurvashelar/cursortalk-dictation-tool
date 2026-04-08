@@ -1,6 +1,7 @@
 use crate::app_state::{AppState, SessionSnapshot, SessionStatus, SESSION_EVENT};
 use crate::cleanup;
 use crate::config::AppConfig;
+use crate::paste;
 use crate::recorder;
 use crate::stt;
 use serde::Serialize;
@@ -86,13 +87,21 @@ pub async fn stop_recording(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let snapshot = stop_recording_internal(&app, &state).await?;
+    let snapshot = stop_recording_internal(&app, &state, false).await?;
     Ok(snapshot)
 }
 
 #[tauri::command]
 pub fn get_stt_status() -> stt::SttStatus {
     stt::current_status()
+}
+
+#[tauri::command]
+pub fn paste_latest_output(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    paste_latest_output_internal(&app, &state)
 }
 
 pub fn handle_hotkey_toggle(app: &AppHandle) {
@@ -107,7 +116,7 @@ pub fn handle_hotkey_toggle(app: &AppHandle) {
         let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
             let state = app_handle.state::<AppState>();
-            if let Err(error) = stop_recording_internal(&app_handle, &state).await {
+            if let Err(error) = stop_recording_internal(&app_handle, &state, true).await {
                 let _ = update_error_state(&app_handle, &state, error);
             }
         });
@@ -137,6 +146,7 @@ fn start_recording_internal(
         session.active_recording = Some(details);
         session.transcription = None;
         session.cleanup = None;
+        session.paste = None;
         session.last_error = None;
         session.snapshot()
     };
@@ -148,6 +158,7 @@ fn start_recording_internal(
 async fn stop_recording_internal(
     app: &AppHandle,
     state: &tauri::State<'_, AppState>,
+    should_paste: bool,
 ) -> Result<SessionSnapshot, String> {
     let snapshot = {
         let mut session = state
@@ -205,13 +216,19 @@ async fn stop_recording_internal(
             .map_err(|_| "failed to lock session state".to_string())?;
 
         session.cleanup = Some(cleanup_result.clone());
+        session.paste = None;
         session.status = SessionStatus::Idle;
         session.last_error = None;
         session.snapshot()
     };
 
     emit_session_state(app, &final_snapshot);
-    Ok(final_snapshot)
+
+    if should_paste {
+        paste_latest_output_internal(app, state)
+    } else {
+        Ok(final_snapshot)
+    }
 }
 
 fn update_error_state(
@@ -233,6 +250,55 @@ fn update_error_state(
 
     emit_session_state(app, &snapshot);
     Ok(snapshot)
+}
+
+fn paste_latest_output_internal(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    let final_output = {
+        let session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+        session
+            .snapshot()
+            .final_output
+            .ok_or_else(|| "there is no transcript output available to paste".to_string())?
+    };
+
+    {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+        session.status = SessionStatus::Pasting;
+        let snapshot = session.snapshot();
+        emit_session_state(app, &snapshot);
+    }
+
+    let paste_result = match paste::paste_text(&final_output) {
+        Ok(result) => result,
+        Err(error) => {
+            let error_message = error.to_string();
+            let _ = update_error_state(app, state, error_message.clone());
+            return Err(error_message);
+        }
+    };
+
+    let final_snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+        session.paste = Some(paste_result);
+        session.status = SessionStatus::Idle;
+        session.last_error = None;
+        session.snapshot()
+    };
+
+    emit_session_state(app, &final_snapshot);
+    Ok(final_snapshot)
 }
 
 fn emit_session_state(app: &AppHandle, snapshot: &SessionSnapshot) {

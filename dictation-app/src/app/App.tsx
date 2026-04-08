@@ -28,6 +28,8 @@ const defaultSessionState: SessionState = {
   cleanup_latency_ms: null,
   cleanup_model_version: null,
   used_cleanup_fallback: false,
+  final_output: null,
+  last_paste_message: null,
 };
 
 const defaultSttStatus: SttStatus = {
@@ -45,6 +47,7 @@ export function App() {
   const [audioDevices, setAudioDevices] = useState<AudioInputDevice[]>([]);
   const [sttStatus, setSttStatus] = useState<SttStatus>(defaultSttStatus);
   const [isRecordingActionPending, setIsRecordingActionPending] = useState(false);
+  const [isPastePending, setIsPastePending] = useState(false);
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -151,6 +154,17 @@ export function App() {
     }
   }
 
+  async function pasteLatestOutput() {
+    setIsPastePending(true);
+
+    try {
+      const nextState = await invoke<SessionState>("paste_latest_output");
+      setSessionState(nextState);
+    } finally {
+      setIsPastePending(false);
+    }
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -187,8 +201,10 @@ export function App() {
             audioDevices={audioDevices}
             sttStatus={sttStatus}
             isRecordingActionPending={isRecordingActionPending}
+            isPastePending={isPastePending}
             startRecording={startRecording}
             stopRecording={stopRecording}
+            pasteLatestOutput={pasteLatestOutput}
           />
         ) : (
           <SettingsPage

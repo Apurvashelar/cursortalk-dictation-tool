@@ -2,6 +2,7 @@ mod app_state;
 mod cleanup;
 mod commands;
 mod config;
+mod paste;
 mod recorder;
 mod stt;
 
@@ -34,7 +35,8 @@ fn main() {
             commands::list_audio_input_devices,
             commands::start_recording,
             commands::stop_recording,
-            commands::get_stt_status
+            commands::get_stt_status,
+            commands::paste_latest_output
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

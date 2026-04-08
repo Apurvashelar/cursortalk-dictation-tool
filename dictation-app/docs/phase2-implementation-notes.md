@@ -13,6 +13,7 @@ This scaffold establishes:
 7. Organization-mode backend diagnostics wired through Tauri commands
 8. recording session state, hotkey toggle path, and microphone capture foundation
 9. recorded WAV files now run through Parakeet STT and then into the hosted cleanup path with fallback
+10. final output can now be pasted into the active application with clipboard save / restore
 
 ## Current tested status
 
@@ -35,18 +36,20 @@ The Tauri bundle target is intentionally set to `app` during early development s
 
 ## Current implementation milestone
 
-Milestone D:
+Milestone E:
 
 1. recorded WAV files are transcribed by a local Parakeet helper script
 2. raw transcript and cleaned text are surfaced in the app UI
 3. cleanup requests target the hosted `/clean` endpoint
 4. if cleanup is unavailable, the app falls back to raw transcript automatically
+5. final output can be pasted manually from the UI, and hotkey-driven dictation now auto-pastes
+6. clipboard text is restored after paste when a previous text value was available
 
 ## Immediate next implementation milestone
 
-Milestone E:
+Milestone F:
 
-1. surface the final cleaned text in a paste-ready output flow
-2. add clipboard save / paste / restore
-3. transition from diagnostic UI into real dictation interaction
-4. validate the tunnel-backed `/clean` path during a live session
+1. run a live end-to-end session through the SSH tunnel and hosted cleanup backend
+2. verify paste behavior in a real target application with accessibility permissions
+3. add lightweight success and failure polish around the dictation completion flow
+4. tighten backend and permission diagnostics based on real usage

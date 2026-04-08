@@ -14,9 +14,11 @@ type SetupPageProps = {
   sttStatus: SttStatus;
   isCheckingHealth: boolean;
   isRecordingActionPending: boolean;
+  isPastePending: boolean;
   refreshBackendHealth: () => void;
   startRecording: () => void;
   stopRecording: () => void;
+  pasteLatestOutput: () => void;
 };
 
 function statusLabel(status: BackendHealth["status"]) {
@@ -40,9 +42,11 @@ export function SetupPage({
   sttStatus,
   isCheckingHealth,
   isRecordingActionPending,
+  isPastePending,
   refreshBackendHealth,
   startRecording,
   stopRecording,
+  pasteLatestOutput,
 }: SetupPageProps) {
   const defaultDevice = audioDevices.find((device) => device.is_default);
   const isRecording = sessionState.state === "recording";
@@ -143,6 +147,14 @@ export function SetupPage({
               >
                 Stop
               </button>
+              <button
+                className="secondary-button"
+                disabled={!sessionState.final_output || isPastePending}
+                onClick={pasteLatestOutput}
+                type="button"
+              >
+                Paste latest
+              </button>
             </div>
           </div>
 
@@ -214,6 +226,17 @@ export function SetupPage({
                 }
                 readOnly
               />
+            </label>
+            <label className="field">
+              <span>Paste</span>
+              <input value={sessionState.last_paste_message ?? "Not pasted yet"} readOnly />
+            </label>
+          </div>
+
+          <div className="field-grid">
+            <label className="field">
+              <span>Final output</span>
+              <textarea value={sessionState.final_output ?? ""} readOnly />
             </label>
             <label className="field">
               <span>Cleanup</span>

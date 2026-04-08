@@ -26,7 +26,7 @@ export type AppConfig = {
 };
 
 export type SessionState = {
-  state: "idle" | "recording" | "transcribing" | "cleaning" | "error";
+  state: "idle" | "recording" | "transcribing" | "cleaning" | "pasting" | "error";
   message: string;
   hotkey: string;
   input_device: string | null;
@@ -40,6 +40,8 @@ export type SessionState = {
   cleanup_latency_ms: number | null;
   cleanup_model_version: string | null;
   used_cleanup_fallback: boolean;
+  final_output: string | null;
+  last_paste_message: string | null;
 };
 
 export type AudioInputDevice = {

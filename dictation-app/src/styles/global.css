@@ -237,6 +237,11 @@ button:disabled {
   color: #8c311f;
 }
 
+.status-pill[data-status="pasting"] {
+  background: #efe7fb;
+  color: #5f2b8c;
+}
+
 .status-pill[data-status="planned"] {
   background: #eeeeea;
   color: #565656;

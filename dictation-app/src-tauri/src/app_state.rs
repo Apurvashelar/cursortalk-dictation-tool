@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::{
     cleanup::CleanupResult,
     config::AppConfig,
+    paste::PasteResult,
     recorder::{RecorderController, RecordingDetails, RecordingSummary},
     stt::TranscriptionResult,
 };
@@ -27,6 +28,8 @@ pub struct SessionSnapshot {
     pub cleanup_latency_ms: Option<u64>,
     pub cleanup_model_version: Option<String>,
     pub used_cleanup_fallback: bool,
+    pub final_output: Option<String>,
+    pub last_paste_message: Option<String>,
 }
 
 pub struct AppState {
@@ -41,6 +44,7 @@ pub struct SessionRuntime {
     pub last_recording: Option<RecordingSummary>,
     pub transcription: Option<TranscriptionResult>,
     pub cleanup: Option<CleanupResult>,
+    pub paste: Option<PasteResult>,
     pub last_error: Option<String>,
 }
 
@@ -49,6 +53,7 @@ pub enum SessionStatus {
     Recording,
     Transcribing,
     Cleaning,
+    Pasting,
     Error,
 }
 
@@ -62,6 +67,7 @@ impl Default for AppState {
                 last_recording: None,
                 transcription: None,
                 cleanup: None,
+                paste: None,
                 last_error: None,
             }),
             recorder: RecorderController::new(),
@@ -92,6 +98,10 @@ impl SessionRuntime {
                 "cleaning".to_string(),
                 "Sending transcript to the hosted cleanup backend.".to_string(),
             ),
+            SessionStatus::Pasting => (
+                "pasting".to_string(),
+                "Pasting final text into the active application.".to_string(),
+            ),
             SessionStatus::Error => (
                 "error".to_string(),
                 self.last_error
@@ -103,6 +113,12 @@ impl SessionRuntime {
         let last_recording = self.last_recording.clone();
         let transcription = self.transcription.clone();
         let cleanup = self.cleanup.clone();
+        let paste = self.paste.clone();
+        let final_output = cleanup
+            .as_ref()
+            .map(|result| result.cleaned_text.clone())
+            .filter(|text| !text.trim().is_empty())
+            .or_else(|| transcription.as_ref().map(|result| result.transcript.clone()));
 
         SessionSnapshot {
             state,
@@ -126,6 +142,8 @@ impl SessionRuntime {
                 .as_ref()
                 .map(|result| result.used_fallback)
                 .unwrap_or(false),
+            final_output,
+            last_paste_message: paste.as_ref().map(|result| result.message.clone()),
         }
     }
 }

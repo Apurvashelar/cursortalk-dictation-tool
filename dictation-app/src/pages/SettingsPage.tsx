@@ -79,6 +79,10 @@ export function SettingsPage({
               <input value={sessionState.state} readOnly />
             </label>
             <label className="field">
+              <span>Paste status</span>
+              <input value={sessionState.last_paste_message ?? "Not pasted yet"} readOnly />
+            </label>
+            <label className="field">
               <span>STT model dir</span>
               <input value={config?.stt_model_dir ?? "Not configured"} readOnly />
             </label>
