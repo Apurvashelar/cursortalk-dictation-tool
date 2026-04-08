@@ -1,6 +1,9 @@
-use crate::app_state::AppState;
+use crate::app_state::{AppState, SessionSnapshot, SessionStatus, SESSION_EVENT};
 use crate::config::AppConfig;
+use crate::recorder;
+use crate::stt;
 use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Serialize)]
 pub struct BackendHealth {
@@ -13,9 +16,9 @@ pub struct BackendHealth {
 #[tauri::command]
 pub fn get_app_status(state: tauri::State<'_, AppState>) -> String {
     state
-        .status
+        .session
         .lock()
-        .map(|value| value.clone())
+        .map(|value| value.snapshot().state)
         .unwrap_or_else(|_| "error".to_string())
 }
 
@@ -51,4 +54,131 @@ pub async fn get_backend_health() -> BackendHealth {
             ),
         },
     }
+}
+
+#[tauri::command]
+pub fn get_session_state(state: tauri::State<'_, AppState>) -> Result<SessionSnapshot, String> {
+    let session = state
+        .session
+        .lock()
+        .map_err(|_| "failed to lock session state".to_string())?;
+
+    Ok(session.snapshot())
+}
+
+#[tauri::command]
+pub fn list_audio_input_devices() -> Result<Vec<recorder::AudioInputDevice>, String> {
+    recorder::list_input_devices().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn start_recording(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    let snapshot = start_recording_internal(&app, &state)?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn stop_recording(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    let snapshot = stop_recording_internal(&app, &state)?;
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub fn get_stt_status() -> stt::SttStatus {
+    stt::current_status()
+}
+
+pub fn handle_hotkey_toggle(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let current_state = state
+        .session
+        .lock()
+        .map(|session| session.snapshot().state)
+        .unwrap_or_else(|_| "error".to_string());
+
+    let result = if current_state == "recording" {
+        stop_recording_internal(app, &state)
+    } else {
+        start_recording_internal(app, &state)
+    };
+
+    if let Err(error) = result {
+        let _ = update_error_state(app, &state, error);
+    }
+}
+
+fn start_recording_internal(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    let snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+        let details = state.recorder.start().map_err(|error| error.to_string())?;
+
+        session.status = SessionStatus::Recording;
+        session.input_device = Some(details.device_name.clone());
+        session.active_recording = Some(details);
+        session.last_error = None;
+        session.snapshot()
+    };
+
+    emit_session_state(app, &snapshot);
+    Ok(snapshot)
+}
+
+fn stop_recording_internal(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    let snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+        let recording = state.recorder.stop().map_err(|error| error.to_string())?;
+
+        session.status = SessionStatus::Transcribing;
+        session.input_device = Some(recording.device_name.clone());
+        session.active_recording = None;
+        session.last_recording = Some(recording);
+        session.last_error = None;
+        session.snapshot()
+    };
+
+    emit_session_state(app, &snapshot);
+    Ok(snapshot)
+}
+
+fn update_error_state(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+    error: String,
+) -> Result<SessionSnapshot, String> {
+    let snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+
+        session.status = SessionStatus::Error;
+        session.active_recording = None;
+        session.last_error = Some(error);
+        session.snapshot()
+    };
+
+    emit_session_state(app, &snapshot);
+    Ok(snapshot)
+}
+
+fn emit_session_state(app: &AppHandle, snapshot: &SessionSnapshot) {
+    let _ = app.emit(SESSION_EVENT, snapshot);
 }

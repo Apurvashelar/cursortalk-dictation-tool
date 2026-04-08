@@ -1,10 +1,22 @@
-import type { AppConfig, BackendHealth } from "../api/backend";
+import type {
+  AppConfig,
+  AudioInputDevice,
+  BackendHealth,
+  SessionState,
+  SttStatus,
+} from "../api/backend";
 
 type SetupPageProps = {
   config: AppConfig | null;
   backendHealth: BackendHealth;
+  sessionState: SessionState;
+  audioDevices: AudioInputDevice[];
+  sttStatus: SttStatus;
   isCheckingHealth: boolean;
+  isRecordingActionPending: boolean;
   refreshBackendHealth: () => void;
+  startRecording: () => void;
+  stopRecording: () => void;
 };
 
 function statusLabel(status: BackendHealth["status"]) {
@@ -23,9 +35,18 @@ function statusLabel(status: BackendHealth["status"]) {
 export function SetupPage({
   config,
   backendHealth,
+  sessionState,
+  audioDevices,
+  sttStatus,
   isCheckingHealth,
+  isRecordingActionPending,
   refreshBackendHealth,
+  startRecording,
+  stopRecording,
 }: SetupPageProps) {
+  const defaultDevice = audioDevices.find((device) => device.is_default);
+  const isRecording = sessionState.state === "recording";
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -100,12 +121,76 @@ export function SetupPage({
         </section>
 
         <section className="card">
-          <h3>Current state</h3>
-          <ul className="plain-list">
-            <li>App shell is build-tested.</li>
-            <li>Organization backend diagnostics are live.</li>
-            <li>Hotkey, recording, and STT are next.</li>
-          </ul>
+          <div className="split-header">
+            <div>
+              <h3>Recording</h3>
+              <p className="muted">{sessionState.message}</p>
+            </div>
+            <div className="button-row">
+              <button
+                className="action-button"
+                disabled={isRecording || isRecordingActionPending}
+                onClick={startRecording}
+                type="button"
+              >
+                Start
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!isRecording || isRecordingActionPending}
+                onClick={stopRecording}
+                type="button"
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+
+          <div className="status-grid">
+            <div className="status-pill" data-status={sessionState.state}>
+              {sessionState.state}
+            </div>
+            <p className="muted">Hotkey: {sessionState.hotkey}</p>
+          </div>
+
+          <div className="field-grid">
+            <label className="field">
+              <span>Default input</span>
+              <input value={defaultDevice?.name ?? "No input device detected"} readOnly />
+            </label>
+            <label className="field">
+              <span>Active input</span>
+              <input value={sessionState.input_device ?? "Not recording"} readOnly />
+            </label>
+          </div>
+
+          {sessionState.last_recording_path ? (
+            <div className="field-grid">
+              <label className="field">
+                <span>Last recording</span>
+                <input value={sessionState.last_recording_path} readOnly />
+              </label>
+              <label className="field">
+                <span>Last capture</span>
+                <input
+                  value={`${sessionState.last_recording_duration_ms ?? 0} ms • ${
+                    sessionState.last_recording_sample_rate ?? 0
+                  } Hz • ${sessionState.last_recording_channels ?? 0} ch`}
+                  readOnly
+                />
+              </label>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="card">
+          <h3>STT boundary</h3>
+          <div className="status-grid">
+            <div className="status-pill" data-status={sttStatus.state}>
+              {sttStatus.engine}
+            </div>
+            <p className="muted">{sttStatus.message}</p>
+          </div>
         </section>
       </div>
     </div>

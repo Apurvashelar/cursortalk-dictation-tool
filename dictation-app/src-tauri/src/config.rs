@@ -4,6 +4,7 @@ use serde::Serialize;
 pub struct AppConfig {
     pub mode: String,
     pub personal_mode_enabled: bool,
+    pub hotkey: String,
     pub server_url: String,
     pub health_url: String,
     pub tunnel_enabled: bool,
@@ -17,6 +18,7 @@ impl Default for AppConfig {
         Self {
             mode: "organization".to_string(),
             personal_mode_enabled: false,
+            hotkey: "CommandOrControl+Shift+D".to_string(),
             server_url: "http://127.0.0.1:8080".to_string(),
             health_url: "http://127.0.0.1:8080/health".to_string(),
             tunnel_enabled: true,

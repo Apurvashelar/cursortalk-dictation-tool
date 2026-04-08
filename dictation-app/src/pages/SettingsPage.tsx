@@ -1,11 +1,25 @@
-import type { AppConfig, BackendHealth } from "../api/backend";
+import type {
+  AppConfig,
+  AudioInputDevice,
+  BackendHealth,
+  SessionState,
+} from "../api/backend";
 
 type SettingsPageProps = {
   config: AppConfig | null;
   backendHealth: BackendHealth;
+  sessionState: SessionState;
+  audioDevices: AudioInputDevice[];
 };
 
-export function SettingsPage({ config, backendHealth }: SettingsPageProps) {
+export function SettingsPage({
+  config,
+  backendHealth,
+  sessionState,
+  audioDevices,
+}: SettingsPageProps) {
+  const defaultDevice = audioDevices.find((device) => device.is_default);
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -25,6 +39,10 @@ export function SettingsPage({ config, backendHealth }: SettingsPageProps) {
             <label className="field">
               <span>Mode</span>
               <input value={config?.mode ?? "organization"} readOnly />
+            </label>
+            <label className="field">
+              <span>Hotkey</span>
+              <input value={config?.hotkey ?? sessionState.hotkey} readOnly />
             </label>
             <label className="field">
               <span>Health URL</span>
@@ -47,6 +65,20 @@ export function SettingsPage({ config, backendHealth }: SettingsPageProps) {
             <li>Cleanup requests will use the forwarded localhost endpoint.</li>
             <li>Raw transcript fallback will be used if the backend is unreachable.</li>
           </ul>
+        </section>
+
+        <section className="card">
+          <h3>Audio</h3>
+          <div className="field-grid">
+            <label className="field">
+              <span>Default input</span>
+              <input value={defaultDevice?.name ?? "No input device detected"} readOnly />
+            </label>
+            <label className="field">
+              <span>Session state</span>
+              <input value={sessionState.state} readOnly />
+            </label>
+          </div>
         </section>
       </div>
     </div>

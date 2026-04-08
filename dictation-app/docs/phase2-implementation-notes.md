@@ -11,6 +11,7 @@ This scaffold establishes:
 5. working Node and Rust toolchain setup on this machine
 6. successful frontend build, Rust check, and Tauri `.app` bundle build
 7. Organization-mode backend diagnostics wired through Tauri commands
+8. recording session state, hotkey toggle path, and microphone capture foundation
 
 ## Current tested status
 
@@ -32,18 +33,18 @@ The Tauri bundle target is intentionally set to `app` during early development s
 
 ## Current implementation milestone
 
-Milestone B:
+Milestone C:
 
-1. Tauri commands now expose app config and backend health
-2. the setup screen now shows tunnel-aware health diagnostics
-3. the settings screen now reflects the active Organization-mode backend
-4. Personal mode remains visible but disabled
+1. the app now exposes live recording session state through Tauri commands and events
+2. a global toggle hotkey is registered for starting and stopping recording
+3. microphone capture writes a WAV file to a local temp recordings directory
+4. the STT boundary is represented explicitly so Parakeet integration can land next
 
 ## Immediate next implementation milestone
 
-Milestone C:
+Milestone D:
 
-1. start the hotkey path
-2. add microphone capture
-3. create session-level recording state transitions
-4. prepare the local Parakeet STT boundary
+1. wire the recorded audio into the Parakeet STT path
+2. move session state from `transcribing` placeholder to real transcript output
+3. connect raw transcript output to the remote cleanup request
+4. preserve raw-transcript fallback behavior when cleanup fails

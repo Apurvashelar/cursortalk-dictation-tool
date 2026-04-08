@@ -22,6 +22,11 @@ input {
   font: inherit;
 }
 
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 #root {
   min-height: 100vh;
 }
@@ -81,6 +86,16 @@ input {
   border-radius: 10px;
   background: #171717;
   color: #fff;
+  cursor: pointer;
+}
+
+.secondary-button {
+  align-self: start;
+  padding: 10px 14px;
+  border: 1px solid #d6d6d2;
+  border-radius: 10px;
+  background: #fff;
+  color: #171717;
   cursor: pointer;
 }
 
@@ -158,6 +173,11 @@ input {
   background: #fafaf8;
 }
 
+.button-row {
+  display: flex;
+  gap: 10px;
+}
+
 .status-pill {
   display: inline-flex;
   width: fit-content;
@@ -182,6 +202,31 @@ input {
 }
 
 .status-pill[data-status="unknown"] {
+  background: #eeeeea;
+  color: #565656;
+}
+
+.status-pill[data-status="idle"] {
+  background: #eeeeea;
+  color: #565656;
+}
+
+.status-pill[data-status="recording"] {
+  background: #fbe2dc;
+  color: #8c311f;
+}
+
+.status-pill[data-status="transcribing"] {
+  background: #e4eefb;
+  color: #1f4f8c;
+}
+
+.status-pill[data-status="error"] {
+  background: #fbe2dc;
+  color: #8c311f;
+}
+
+.status-pill[data-status="planned"] {
   background: #eeeeea;
   color: #565656;
 }

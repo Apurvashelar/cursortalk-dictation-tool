@@ -15,10 +15,33 @@ export const defaultBackendHealth: BackendHealth = {
 export type AppConfig = {
   mode: string;
   personal_mode_enabled: boolean;
+  hotkey: string;
   server_url: string;
   health_url: string;
   tunnel_enabled: boolean;
   tunnel_host: string;
   tunnel_local_port: number;
   tunnel_remote_port: number;
+};
+
+export type SessionState = {
+  state: "idle" | "recording" | "transcribing" | "error";
+  message: string;
+  hotkey: string;
+  input_device: string | null;
+  last_recording_path: string | null;
+  last_recording_duration_ms: number | null;
+  last_recording_sample_rate: number | null;
+  last_recording_channels: number | null;
+};
+
+export type AudioInputDevice = {
+  name: string;
+  is_default: boolean;
+};
+
+export type SttStatus = {
+  engine: string;
+  state: string;
+  message: string;
 };
