@@ -70,3 +70,14 @@ export type LocalSetupProgress = {
   step: string;
   message: string;
 };
+
+export type PermissionState = {
+  status: "ready" | "needs_access" | "unknown" | "error";
+  label: string;
+  message: string;
+};
+
+export type PermissionStatusReport = {
+  microphone: PermissionState;
+  accessibility: PermissionState;
+};

@@ -7,6 +7,7 @@ import type {
   BackendHealth,
   LocalSetupProgress,
   LocalSetupStatus,
+  PermissionStatusReport,
   SessionState,
   SttStatus,
 } from "../api/backend";
@@ -67,6 +68,19 @@ const defaultSttStatus: SttStatus = {
   message: "STT boundary is not wired yet.",
 };
 
+const defaultPermissionStatus: PermissionStatusReport = {
+  microphone: {
+    status: "unknown",
+    label: "Unknown",
+    message: "Microphone permission has not been checked yet.",
+  },
+  accessibility: {
+    status: "unknown",
+    label: "Unknown",
+    message: "Accessibility permission has not been checked yet.",
+  },
+};
+
 export function App() {
   const { currentPage, setCurrentPage } = useAppState();
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -75,8 +89,11 @@ export function App() {
   const [sessionState, setSessionState] = useState<SessionState>(defaultSessionState);
   const [audioDevices, setAudioDevices] = useState<AudioInputDevice[]>([]);
   const [sttStatus, setSttStatus] = useState<SttStatus>(defaultSttStatus);
+  const [permissionStatus, setPermissionStatus] =
+    useState<PermissionStatusReport>(defaultPermissionStatus);
   const [isRecordingActionPending, setIsRecordingActionPending] = useState(false);
   const [isPastePending, setIsPastePending] = useState(false);
+  const [isRefreshingPermissions, setIsRefreshingPermissions] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [selectedMode, setSelectedMode] = useState<"local" | "organization">(() => {
     if (typeof window === "undefined") {
@@ -157,6 +174,11 @@ export function App() {
     setSttStatus(nextStatus);
   }
 
+  async function loadPermissionStatus() {
+    const nextStatus = await invoke<PermissionStatusReport>("get_permission_status_report");
+    setPermissionStatus(nextStatus);
+  }
+
   async function refreshBackendHealth() {
     setIsCheckingHealth(true);
     const cleanupUrl =
@@ -206,6 +228,7 @@ export function App() {
     void loadSessionState();
     void loadAudioDevices();
     void loadSttStatus();
+    void loadPermissionStatus();
   }, []);
 
   useEffect(() => {
@@ -466,6 +489,23 @@ export function App() {
     }
   }
 
+  async function refreshPermissionStatus() {
+    setIsRefreshingPermissions(true);
+    try {
+      await loadPermissionStatus();
+    } finally {
+      setIsRefreshingPermissions(false);
+    }
+  }
+
+  async function openPermissionSettings(permission: "microphone" | "accessibility") {
+    try {
+      await invoke("open_permission_settings", { permission });
+    } catch (error) {
+      console.error(`Failed to open ${permission} settings`, error);
+    }
+  }
+
   async function copyLatestOutput() {
     if (!sessionState.final_output) {
       return;
@@ -664,6 +704,10 @@ export function App() {
             backendHealth={backendHealth}
             sessionState={sessionState}
             audioDevices={audioDevices}
+            permissionStatus={permissionStatus}
+            isRefreshingPermissions={isRefreshingPermissions}
+            onRefreshPermissions={refreshPermissionStatus}
+            onOpenPermissionSettings={openPermissionSettings}
             organizationBaseUrl={selectedMode === "organization" ? organizationBaseUrl : undefined}
           />
         ) : (
@@ -674,6 +718,7 @@ export function App() {
             sessionState={sessionState}
             audioDevices={audioDevices}
             sttStatus={sttStatus}
+            permissionStatus={permissionStatus}
             isCheckingHealth={isCheckingHealth}
             refreshBackendHealth={refreshBackendHealth}
           />

@@ -4,6 +4,7 @@ mod commands;
 mod config;
 mod local_setup;
 mod paste;
+mod permissions;
 mod recorder;
 mod stt;
 
@@ -41,7 +42,9 @@ fn main() {
             commands::get_stt_status,
             commands::get_local_setup_status,
             commands::run_local_setup,
-            commands::paste_latest_output
+            commands::paste_latest_output,
+            commands::get_permission_status_report,
+            commands::open_permission_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

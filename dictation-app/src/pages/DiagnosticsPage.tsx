@@ -2,6 +2,7 @@ import type {
   AppConfig,
   AudioInputDevice,
   BackendHealth,
+  PermissionStatusReport,
   SessionState,
   SttStatus,
 } from "../api/backend";
@@ -13,6 +14,7 @@ type DiagnosticsPageProps = {
   sessionState: SessionState;
   audioDevices: AudioInputDevice[];
   sttStatus: SttStatus;
+  permissionStatus: PermissionStatusReport;
   isCheckingHealth: boolean;
   refreshBackendHealth: () => void;
 };
@@ -37,6 +39,7 @@ export function DiagnosticsPage({
   sessionState,
   audioDevices,
   sttStatus,
+  permissionStatus,
   isCheckingHealth,
   refreshBackendHealth,
 }: DiagnosticsPageProps) {
@@ -177,6 +180,14 @@ export function DiagnosticsPage({
             <label className="field">
               <span>Local cleanup runtime</span>
               <input value="llama-server binary" readOnly />
+            </label>
+            <label className="field">
+              <span>Microphone permission</span>
+              <input value={permissionStatus.microphone.label} readOnly />
+            </label>
+            <label className="field">
+              <span>Accessibility permission</span>
+              <input value={permissionStatus.accessibility.label} readOnly />
             </label>
           </div>
         </section>

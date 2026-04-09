@@ -3,6 +3,7 @@ use crate::cleanup;
 use crate::config::AppConfig;
 use crate::local_setup;
 use crate::paste;
+use crate::permissions;
 use crate::recorder;
 use crate::stt;
 use serde::Serialize;
@@ -149,6 +150,16 @@ pub fn get_stt_status() -> stt::SttStatus {
 #[tauri::command]
 pub fn get_local_setup_status() -> local_setup::LocalSetupStatus {
     local_setup::detect_local_setup()
+}
+
+#[tauri::command]
+pub fn get_permission_status_report() -> permissions::PermissionStatusReport {
+    permissions::get_permission_status_report()
+}
+
+#[tauri::command]
+pub fn open_permission_settings(permission: String) -> Result<(), String> {
+    permissions::open_permission_settings(permission.as_str()).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

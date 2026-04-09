@@ -84,6 +84,11 @@ button:disabled {
   color: #647069;
 }
 
+.compact {
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
 .nav {
   display: flex;
   gap: 10px;
@@ -157,6 +162,15 @@ button:disabled {
   box-shadow: 0 20px 60px rgba(23, 33, 29, 0.06);
 }
 
+.card-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
 .field-grid,
 .status-grid {
   display: grid;
@@ -221,6 +235,11 @@ button:disabled {
   color: #8c311f;
 }
 
+.status-pill[data-status="needs_access"] {
+  background: #fff3d9;
+  color: #8f6600;
+}
+
 .status-pill[data-status="unknown"],
 .status-pill[data-status="idle"] {
   background: #eeeeea;
@@ -258,6 +277,40 @@ button:disabled {
 .ordered {
   margin: 0;
   padding-left: 20px;
+}
+
+.permission-list {
+  display: grid;
+  gap: 14px;
+}
+
+.permission-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 0;
+  border-top: 1px solid rgba(23, 33, 29, 0.08);
+}
+
+.permission-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.permission-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.permission-hint {
+  padding-top: 4px;
+  color: #647069;
+  font-size: 0.94rem;
+  line-height: 1.5;
 }
 
 .hero-card {
