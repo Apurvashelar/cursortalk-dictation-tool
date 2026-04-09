@@ -152,6 +152,10 @@ export function DiagnosticsPage({
               <span>STT model dir</span>
               <input value={config?.stt_model_dir ?? "Not configured"} readOnly />
             </label>
+            <label className="field">
+              <span>Local cleanup runtime</span>
+              <input value="llama-server binary" readOnly />
+            </label>
           </div>
         </section>
       </div>

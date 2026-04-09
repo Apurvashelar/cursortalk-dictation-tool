@@ -277,6 +277,7 @@ async fn stop_recording_internal(
                 .map_err(|_| "failed to lock local cleanup server state".to_string())?;
 
             match cleanup::clean_text_local(
+                app,
                 &mut local_server,
                 &local_status.cleanup_model_dir,
                 &raw_transcript,

@@ -1,4 +1,5 @@
 use std::{
+    env,
     fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -9,6 +10,7 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use reqwest::blocking::Client as BlockingClient;
 use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
 
 use crate::app_state::LocalCleanupServerState;
 
@@ -17,6 +19,8 @@ const LOCAL_SERVER_PORT: u16 = 8081;
 const LOCAL_SERVER_MODELS_URL: &str = "http://127.0.0.1:8081/v1/models";
 const LOCAL_SERVER_CHAT_URL: &str = "http://127.0.0.1:8081/v1/chat/completions";
 const CLEANUP_MODEL_FILE_NAME: &str = "dictation-cleanup-q4km.gguf";
+const LLAMA_SERVER_ENV: &str = "VOICEFLOW_LLAMA_SERVER_PATH";
+const DEV_LLAMA_SERVER_PATH: &str = "/Users/appe/llama.cpp/build/bin/llama-server";
 const LOCAL_SYSTEM_PROMPT: &str = "You clean raw English dictation transcripts. Remove disfluencies, false starts, repetitions, and obvious ASR artifacts. Restore punctuation and capitalization. Preserve meaning exactly, especially numbers, names, identifiers, URLs, file paths, versions, and dates. Output only the cleaned plain text.\n\nRules:\n- Fix filler words (um, uh, like, you know)\n- Fix false starts and self-corrections (keep the corrected version only)\n- Do NOT add any content that wasn't spoken\n- Do NOT remove meaningful content\n- Do NOT change the meaning or intent\n- Do NOT add greetings, sign-offs, or formatting not present in the original\n- Output ONLY the cleaned text, nothing else";
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -119,12 +123,13 @@ pub async fn clean_text(cleanup_url: &str, raw_text: &str) -> Result<CleanupResu
 }
 
 pub fn clean_text_local(
+    app: &AppHandle,
     server_state: &mut LocalCleanupServerState,
     cleanup_model_dir: &str,
     raw_text: &str,
 ) -> Result<CleanupResult> {
     let model_path = resolve_local_model_path(cleanup_model_dir)?;
-    ensure_local_server(server_state, &model_path)?;
+    ensure_local_server(app, server_state, &model_path)?;
 
     let started_at = Instant::now();
     let models_client = BlockingClient::builder()
@@ -205,6 +210,7 @@ pub fn fallback_from_raw(raw_text: &str, error: &str) -> CleanupResult {
 }
 
 fn ensure_local_server(
+    app: &AppHandle,
     server_state: &mut LocalCleanupServerState,
     model_path: &Path,
 ) -> Result<()> {
@@ -238,23 +244,28 @@ fn ensure_local_server(
     }
 
     if server_state.child.is_none() {
-        let child = Command::new("python3")
-            .arg("-m")
-            .arg("llama_cpp.server")
+        let llama_server_path = resolve_llama_server_path(app)?;
+        let child = Command::new(&llama_server_path)
             .arg("--model")
             .arg(model_path)
             .arg("--host")
             .arg(LOCAL_SERVER_HOST)
             .arg("--port")
             .arg(LOCAL_SERVER_PORT.to_string())
-            .arg("--n_ctx")
+            .arg("--ctx-size")
             .arg("4096")
-            .arg("--n_gpu_layers")
-            .arg("999")
+            .arg("--gpu-layers")
+            .arg("all")
+            .arg("--jinja")
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .context("failed to start local cleanup server. Make sure python3 and llama-cpp-python are installed.")?;
+            .with_context(|| {
+                format!(
+                    "failed to start local cleanup server with {}",
+                    llama_server_path.display()
+                )
+            })?;
 
         server_state.child = Some(child);
         server_state.model_path = Some(model_path.display().to_string());
@@ -271,6 +282,48 @@ fn ensure_local_server(
     Err(anyhow!(
         "Local cleanup server did not become ready within 30 seconds."
     ))
+}
+
+fn resolve_llama_server_path(_app: &AppHandle) -> Result<PathBuf> {
+    if let Ok(path) = env::var(LLAMA_SERVER_ENV) {
+        let candidate = PathBuf::from(path.trim());
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    for candidate in candidate_llama_server_paths() {
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(anyhow!(
+        "No llama-server binary was found. Expected a bundled binary or set {} to a valid path.",
+        LLAMA_SERVER_ENV
+    ))
+}
+
+fn candidate_llama_server_paths() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(current_exe) = env::current_exe() {
+        if let Some(macos_dir) = current_exe.parent() {
+            candidates.push(macos_dir.join("llama-server"));
+            candidates.push(macos_dir.join("llama-server-aarch64-apple-darwin"));
+
+            if let Some(contents_dir) = macos_dir.parent() {
+                let resources_dir = contents_dir.join("Resources");
+                candidates.push(resources_dir.join("llama-server"));
+                candidates.push(resources_dir.join("llama-server-aarch64-apple-darwin"));
+            }
+        }
+    }
+
+    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin").join("llama-server"));
+    candidates.push(PathBuf::from(DEV_LLAMA_SERVER_PATH));
+
+    candidates
 }
 
 fn local_server_is_healthy() -> bool {
