@@ -91,7 +91,7 @@ fn build_recognizer(model_dir: &str) -> Result<TransducerRecognizer> {
         sample_rate: 16_000,
         feature_dim: 80,
         decoding_method: "greedy_search".to_string(),
-        model_type: "transducer".to_string(),
+        model_type: "nemo_transducer".to_string(),
         ..Default::default()
     };
 
@@ -163,4 +163,21 @@ fn fold_channels(samples: Vec<f32>, channels: u16) -> Vec<f32> {
         .chunks(channels as usize)
         .map(|chunk| chunk.iter().copied().sum::<f32>() / chunk.len() as f32)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::transcribe_wav;
+
+    #[test]
+    #[ignore = "requires local model and recording fixture paths"]
+    fn native_transcriber_handles_existing_recording() {
+        let audio_path = std::env::var("VOICEFLOW_STT_TEST_AUDIO")
+            .expect("VOICEFLOW_STT_TEST_AUDIO must point to a WAV file");
+        let model_dir = std::env::var("VOICEFLOW_STT_TEST_MODEL_DIR")
+            .expect("VOICEFLOW_STT_TEST_MODEL_DIR must point to the Parakeet model directory");
+
+        let result = transcribe_wav(&audio_path, &model_dir).expect("native transcription should work");
+        assert!(!result.transcript.trim().is_empty());
+    }
 }
