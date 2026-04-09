@@ -1,6 +1,7 @@
 use std::{
     env,
     fs,
+    net::TcpListener,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
@@ -15,9 +16,7 @@ use tauri::AppHandle;
 use crate::app_state::LocalCleanupServerState;
 
 const LOCAL_SERVER_HOST: &str = "127.0.0.1";
-const LOCAL_SERVER_PORT: u16 = 8081;
-const LOCAL_SERVER_MODELS_URL: &str = "http://127.0.0.1:8081/v1/models";
-const LOCAL_SERVER_CHAT_URL: &str = "http://127.0.0.1:8081/v1/chat/completions";
+const DEFAULT_LOCAL_SERVER_PORT: u16 = 8081;
 const CLEANUP_MODEL_FILE_NAME: &str = "dictation-cleanup-q4km.gguf";
 const LLAMA_SERVER_ENV: &str = "VOICEFLOW_LLAMA_SERVER_PATH";
 const DEV_LLAMA_SERVER_PATH: &str = "/Users/appe/llama.cpp/build/bin/llama-server";
@@ -129,7 +128,7 @@ pub fn clean_text_local(
     raw_text: &str,
 ) -> Result<CleanupResult> {
     let model_path = resolve_local_model_path(cleanup_model_dir)?;
-    ensure_local_server(app, server_state, &model_path)?;
+    let port = ensure_local_server(app, server_state, &model_path)?;
 
     let started_at = Instant::now();
     let models_client = BlockingClient::builder()
@@ -138,7 +137,7 @@ pub fn clean_text_local(
         .context("failed to create local cleanup client")?;
 
     let models_payload: LocalModelsResponse = models_client
-        .get(LOCAL_SERVER_MODELS_URL)
+        .get(local_server_models_url(port))
         .send()
         .context("failed to query local cleanup models")?
         .error_for_status()
@@ -153,7 +152,7 @@ pub fn clean_text_local(
         .unwrap_or_else(|| CLEANUP_MODEL_FILE_NAME.to_string());
 
     let response: LocalCleanupResponse = models_client
-        .post(LOCAL_SERVER_CHAT_URL)
+        .post(local_server_chat_url(port))
         .json(&LocalCleanupRequest {
             model: &model_id,
             messages: [
@@ -213,10 +212,18 @@ fn ensure_local_server(
     app: &AppHandle,
     server_state: &mut LocalCleanupServerState,
     model_path: &Path,
-) -> Result<()> {
-    if local_server_is_healthy() {
+) -> Result<u16> {
+    if let Some(port) = server_state.port {
+        if local_server_is_healthy(port) {
+            server_state.model_path = Some(model_path.display().to_string());
+            return Ok(port);
+        }
+    }
+
+    if local_server_is_healthy(DEFAULT_LOCAL_SERVER_PORT) && server_state.child.is_none() {
         server_state.model_path = Some(model_path.display().to_string());
-        return Ok(());
+        server_state.port = Some(DEFAULT_LOCAL_SERVER_PORT);
+        return Ok(DEFAULT_LOCAL_SERVER_PORT);
     }
 
     if let Some(child) = server_state.child.as_mut() {
@@ -227,6 +234,7 @@ fn ensure_local_server(
         {
             server_state.child = None;
             server_state.model_path = None;
+            server_state.port = None;
         }
     }
 
@@ -241,9 +249,11 @@ fn ensure_local_server(
             let _ = child.wait();
         }
         server_state.model_path = None;
+        server_state.port = None;
     }
 
     if server_state.child.is_none() {
+        let port = choose_local_server_port()?;
         let llama_server_path = resolve_llama_server_path(app)?;
         let child = Command::new(&llama_server_path)
             .arg("--model")
@@ -251,7 +261,7 @@ fn ensure_local_server(
             .arg("--host")
             .arg(LOCAL_SERVER_HOST)
             .arg("--port")
-            .arg(LOCAL_SERVER_PORT.to_string())
+            .arg(port.to_string())
             .arg("--ctx-size")
             .arg("4096")
             .arg("--gpu-layers")
@@ -269,18 +279,35 @@ fn ensure_local_server(
 
         server_state.child = Some(child);
         server_state.model_path = Some(model_path.display().to_string());
+        server_state.port = Some(port);
     }
 
+    let port = server_state.port.unwrap_or(DEFAULT_LOCAL_SERVER_PORT);
     let started_at = Instant::now();
     while started_at.elapsed() < Duration::from_secs(30) {
-        if local_server_is_healthy() {
-            return Ok(());
+        if local_server_is_healthy(port) {
+            return Ok(port);
+        }
+
+        if let Some(child) = server_state.child.as_mut() {
+            if let Some(status) = child
+                .try_wait()
+                .context("failed to inspect local cleanup server process")?
+            {
+                server_state.child = None;
+                server_state.model_path = None;
+                server_state.port = None;
+                return Err(anyhow!(
+                    "Local cleanup server exited before becoming ready (status: {status})."
+                ));
+            }
         }
         thread::sleep(Duration::from_millis(500));
     }
 
     Err(anyhow!(
-        "Local cleanup server did not become ready within 30 seconds."
+        "Local cleanup server did not become ready within 30 seconds on port {}.",
+        port
     ))
 }
 
@@ -326,7 +353,7 @@ fn candidate_llama_server_paths() -> Vec<PathBuf> {
     candidates
 }
 
-fn local_server_is_healthy() -> bool {
+fn local_server_is_healthy(port: u16) -> bool {
     let client = match BlockingClient::builder()
         .timeout(Duration::from_secs(2))
         .build()
@@ -336,10 +363,33 @@ fn local_server_is_healthy() -> bool {
     };
 
     client
-        .get(LOCAL_SERVER_MODELS_URL)
+        .get(local_server_models_url(port))
         .send()
         .and_then(|response| response.error_for_status())
         .is_ok()
+}
+
+fn choose_local_server_port() -> Result<u16> {
+    if TcpListener::bind((LOCAL_SERVER_HOST, DEFAULT_LOCAL_SERVER_PORT)).is_ok() {
+        return Ok(DEFAULT_LOCAL_SERVER_PORT);
+    }
+
+    let listener = TcpListener::bind((LOCAL_SERVER_HOST, 0))
+        .context("failed to reserve a local port for the cleanup runtime")?;
+    let port = listener
+        .local_addr()
+        .context("failed to inspect reserved local cleanup port")?
+        .port();
+    drop(listener);
+    Ok(port)
+}
+
+fn local_server_models_url(port: u16) -> String {
+    format!("http://{LOCAL_SERVER_HOST}:{port}/v1/models")
+}
+
+fn local_server_chat_url(port: u16) -> String {
+    format!("http://{LOCAL_SERVER_HOST}:{port}/v1/chat/completions")
 }
 
 fn resolve_local_model_path(cleanup_model_dir: &str) -> Result<PathBuf> {

@@ -55,6 +55,7 @@ pub struct RuntimeSettings {
 pub struct LocalCleanupServerState {
     pub child: Option<Child>,
     pub model_path: Option<String>,
+    pub port: Option<u16>,
 }
 
 pub struct SessionRuntime {
@@ -98,6 +99,7 @@ impl Default for AppState {
             local_cleanup_server: Mutex::new(LocalCleanupServerState {
                 child: None,
                 model_path: None,
+                port: None,
             }),
         }
     }
