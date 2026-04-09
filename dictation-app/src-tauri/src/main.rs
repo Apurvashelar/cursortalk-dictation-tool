@@ -32,6 +32,7 @@ fn main() {
             commands::get_app_status,
             commands::get_config,
             commands::get_backend_health,
+            commands::check_backend_health_with_urls,
             commands::get_session_state,
             commands::list_audio_input_devices,
             commands::start_recording,

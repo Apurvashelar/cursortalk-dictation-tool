@@ -11,6 +11,7 @@ type SettingsPageProps = {
   backendHealth: BackendHealth;
   sessionState: SessionState;
   audioDevices: AudioInputDevice[];
+  organizationBaseUrl?: string;
 };
 
 export function SettingsPage({
@@ -19,6 +20,7 @@ export function SettingsPage({
   backendHealth,
   sessionState,
   audioDevices,
+  organizationBaseUrl,
 }: SettingsPageProps) {
   const defaultDevice = audioDevices.find((device) => device.is_default);
 
@@ -71,12 +73,23 @@ export function SettingsPage({
               </label>
               <label className="field">
                 <span>Backend URL</span>
-                <input value={config?.cleanup_url ?? "http://127.0.0.1:8080/clean"} readOnly />
+                <input
+                  value={
+                    organizationBaseUrl
+                      ? `${organizationBaseUrl.replace(/\/$/, "")}/clean`
+                      : config?.cleanup_url ?? "http://127.0.0.1:8080/clean"
+                  }
+                  readOnly
+                />
               </label>
               <label className="field">
                 <span>Health URL</span>
                 <input
-                  value={config?.health_url ?? "http://127.0.0.1:8080/health"}
+                  value={
+                    organizationBaseUrl
+                      ? `${organizationBaseUrl.replace(/\/$/, "")}/health`
+                      : config?.health_url ?? "http://127.0.0.1:8080/health"
+                  }
                   readOnly
                 />
               </label>

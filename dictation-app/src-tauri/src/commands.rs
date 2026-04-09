@@ -34,23 +34,36 @@ pub fn get_config() -> AppConfig {
 pub async fn get_backend_health() -> BackendHealth {
     let config = AppConfig::default();
     let health_url = config.health_url.clone();
+    let cleanup_url = config.cleanup_url.clone();
 
+    check_backend_health_internal(cleanup_url, health_url).await
+}
+
+#[tauri::command]
+pub async fn check_backend_health_with_urls(
+    cleanup_url: String,
+    health_url: String,
+) -> BackendHealth {
+    check_backend_health_internal(cleanup_url, health_url).await
+}
+
+async fn check_backend_health_internal(cleanup_url: String, health_url: String) -> BackendHealth {
     match reqwest::get(&health_url).await {
         Ok(response) if response.status().is_success() => BackendHealth {
             status: "healthy".to_string(),
-            endpoint: config.cleanup_url,
+            endpoint: cleanup_url,
             health_url,
             message: "Tunnel endpoint is reachable.".to_string(),
         },
         Ok(response) => BackendHealth {
             status: "degraded".to_string(),
-            endpoint: config.cleanup_url,
+            endpoint: cleanup_url,
             health_url,
             message: format!("Health check returned HTTP {}.", response.status()),
         },
         Err(error) => BackendHealth {
             status: "unreachable".to_string(),
-            endpoint: config.cleanup_url,
+            endpoint: cleanup_url,
             health_url,
             message: format!(
                 "Could not reach the forwarded backend. Start or verify the SSH tunnel. ({error})"

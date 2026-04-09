@@ -73,22 +73,31 @@ function SetupStage({
   detectedStatus?: "complete" | "partial" | "missing";
   missingItems?: string[];
 }) {
+  const isPreflightStep = [
+    "Checking local setup",
+    "Looking for speech model",
+    "Looking for cleanup model",
+    "Validating local files",
+    "Setup already completed",
+  ].includes(progressStepLabel);
+  const isCompletedSetupNotice = progressStepLabel === "Setup already completed";
+
   return (
     <div className="rounded-[34px] border border-black/10 bg-white/78 p-8 shadow-[0_30px_120px_rgba(15,23,42,0.1)] backdrop-blur-2xl md:p-10">
       <div className="mx-auto max-w-3xl text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+        <h1 className="text-base font-medium uppercase tracking-[0.22em] text-slate-500">
           Setting up Local mode
         </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-          {detectedStatus === "complete"
-            ? "Checking the files already available on this machine."
-            : detectedStatus === "missing" || detectedStatus === "partial"
-              ? "Checking what already exists, then preparing the local runtime."
-              : "Preparing local dictation on this machine."}
-        </p>
+        {!isCompletedSetupNotice ? (
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            {detectedStatus === "missing" || detectedStatus === "partial"
+              ? "Checking the files already available on this machine."
+              : "Checking the files already available on this machine."}
+          </p>
+        ) : null}
       </div>
 
-      {statusMessage ? (
+      {statusMessage && !isCompletedSetupNotice ? (
         <div className="mx-auto mt-6 max-w-3xl rounded-[22px] border border-black/8 bg-black/[0.03] px-5 py-4 text-sm text-slate-700">
           <p>{statusMessage}</p>
           {missingItems && missingItems.length > 0 ? (
@@ -96,6 +105,12 @@ function SetupStage({
               Missing: {missingItems.join(", ")}
             </p>
           ) : null}
+        </div>
+      ) : null}
+
+      {isCompletedSetupNotice ? (
+        <div className="mx-auto mt-7 max-w-fit rounded-2xl border border-black/8 bg-black/[0.03] px-5 py-3 text-sm font-medium text-slate-800 shadow-[0_18px_50px_rgba(15,23,42,0.06)] backdrop-blur-xl">
+          Setup is already completed on this machine. Skipping download.
         </div>
       ) : null}
 
@@ -112,14 +127,16 @@ function SetupStage({
         </div>
       </div>
 
-      <div className="mx-auto mt-10 grid max-w-3xl gap-3 md:grid-cols-2">
-        <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-sm text-slate-600">
-          About 3.2 GB total download for local speech and cleanup models.
+      {!isPreflightStep ? (
+        <div className="mx-auto mt-10 grid max-w-3xl gap-3 md:grid-cols-2">
+          <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-sm text-slate-600">
+            About 3.2 GB total download for local speech and cleanup models.
+          </div>
+          <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-sm text-slate-600">
+            Local mode will be ready automatically once model preparation finishes.
+          </div>
         </div>
-        <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-sm text-slate-600">
-          Local mode will be ready automatically once model preparation finishes.
-        </div>
-      </div>
+      ) : null}
 
       <div className="mx-auto mt-10 flex max-w-2xl justify-center">
         <div className="flex flex-col gap-4">

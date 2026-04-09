@@ -17,12 +17,15 @@ import {
   LocalOnboardingPage,
   type LocalOnboardingStage,
 } from "../pages/LocalOnboardingPage";
+import { OrganizationOnboardingPage } from "../pages/OrganizationOnboardingPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WelcomePage } from "../pages/WelcomePage";
 import { useAppState } from "../state/appState";
 
 const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
 const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
+const ORGANIZATION_BASE_URL_KEY = "voiceflow-enterprise-app.organization-base-url";
+const ORGANIZATION_API_KEY_KEY = "voiceflow-enterprise-app.organization-api-key";
 const LOCAL_SETUP_PROGRESS_EVENT = "local-setup-progress";
 const localPreflightSteps = [
   "Checking local setup",
@@ -84,7 +87,7 @@ export function App() {
       : "organization";
   });
   const [onboardingStep, setOnboardingStep] = useState<
-    "welcome" | "mode" | "local_setup" | "local_demo" | "local_test" | null
+    "welcome" | "mode" | "local_setup" | "local_demo" | "local_test" | "organization_setup" | null
   >(() => {
     if (typeof window === "undefined") {
       return null;
@@ -96,6 +99,42 @@ export function App() {
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
   const [localSetupStepItems, setLocalSetupStepItems] =
     useState<readonly string[]>(localPreflightSteps);
+  const [organizationBaseUrl, setOrganizationBaseUrl] = useState(() => {
+    if (typeof window === "undefined") {
+      return "http://127.0.0.1:8080";
+    }
+
+    return (
+      window.localStorage.getItem(ORGANIZATION_BASE_URL_KEY) ?? "http://127.0.0.1:8080"
+    );
+  });
+  const [organizationApiKey, setOrganizationApiKey] = useState(() => {
+    if (typeof window === "undefined") {
+      return "";
+    }
+
+    return window.localStorage.getItem(ORGANIZATION_API_KEY_KEY) ?? "";
+  });
+  const [organizationSetupStatus, setOrganizationSetupStatus] = useState<
+    "idle" | "checking" | "unknown" | "healthy" | "degraded" | "unreachable"
+  >("idle");
+  const [organizationSetupMessage, setOrganizationSetupMessage] = useState(
+    "Enter your server URL, then verify the connection.",
+  );
+
+  function normalizeBaseUrl(baseUrl: string) {
+    return baseUrl.trim().replace(/\/$/, "");
+  }
+
+  function buildCleanupUrl(baseUrl: string) {
+    const normalized = normalizeBaseUrl(baseUrl);
+    return normalized ? `${normalized}/clean` : "";
+  }
+
+  function buildHealthUrl(baseUrl: string) {
+    const normalized = normalizeBaseUrl(baseUrl);
+    return normalized ? `${normalized}/health` : "";
+  }
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -119,6 +158,14 @@ export function App() {
 
   async function refreshBackendHealth() {
     setIsCheckingHealth(true);
+    const cleanupUrl =
+      selectedMode === "organization"
+        ? buildCleanupUrl(organizationBaseUrl)
+        : config?.cleanup_url ?? defaultBackendHealth.endpoint;
+    const healthUrl =
+      selectedMode === "organization"
+        ? buildHealthUrl(organizationBaseUrl)
+        : config?.health_url ?? defaultBackendHealth.healthUrl;
 
     try {
       const nextHealth = await invoke<{
@@ -126,7 +173,14 @@ export function App() {
         endpoint: string;
         health_url: string;
         message: string;
-      }>("get_backend_health");
+      }>(
+        selectedMode === "organization" && cleanupUrl && healthUrl
+          ? "check_backend_health_with_urls"
+          : "get_backend_health",
+        selectedMode === "organization" && cleanupUrl && healthUrl
+          ? { cleanupUrl, healthUrl }
+          : undefined,
+      );
 
       setBackendHealth({
         status: nextHealth.status,
@@ -137,8 +191,8 @@ export function App() {
     } catch (error) {
       setBackendHealth({
         status: "unreachable",
-        endpoint: config?.cleanup_url ?? defaultBackendHealth.endpoint,
-        healthUrl: config?.health_url ?? defaultBackendHealth.healthUrl,
+        endpoint: cleanupUrl || defaultBackendHealth.endpoint,
+        healthUrl: healthUrl || defaultBackendHealth.healthUrl,
         message: `Health check could not be completed. ${String(error)}`,
       });
     } finally {
@@ -406,6 +460,8 @@ export function App() {
 
   function completeOrganizationOnboarding() {
     setSelectedMode("organization");
+    window.localStorage.setItem(ORGANIZATION_BASE_URL_KEY, normalizeBaseUrl(organizationBaseUrl));
+    window.localStorage.setItem(ORGANIZATION_API_KEY_KEY, organizationApiKey);
     window.localStorage.setItem(SELECTED_MODE_KEY, "organization");
     window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
     setOnboardingStep(null);
@@ -426,6 +482,44 @@ export function App() {
     setCurrentPage("home");
   }
 
+  async function checkOrganizationConnection() {
+    const cleanupUrl = buildCleanupUrl(organizationBaseUrl);
+    const healthUrl = buildHealthUrl(organizationBaseUrl);
+
+    if (!cleanupUrl || !healthUrl) {
+      setOrganizationSetupStatus("unreachable");
+      setOrganizationSetupMessage("Enter a valid server URL first.");
+      return;
+    }
+
+    setOrganizationSetupStatus("checking");
+    setOrganizationSetupMessage("Checking connection to the organization backend.");
+
+    try {
+      const nextHealth = await invoke<{
+        status: BackendHealth["status"];
+        endpoint: string;
+        health_url: string;
+        message: string;
+      }>("check_backend_health_with_urls", {
+        cleanupUrl,
+        healthUrl,
+      });
+
+      setOrganizationSetupStatus(nextHealth.status);
+      setOrganizationSetupMessage(nextHealth.message);
+      setBackendHealth({
+        status: nextHealth.status,
+        endpoint: nextHealth.endpoint,
+        healthUrl: nextHealth.health_url,
+        message: nextHealth.message,
+      });
+    } catch (error) {
+      setOrganizationSetupStatus("unreachable");
+      setOrganizationSetupMessage(`Connection check failed. ${String(error)}`);
+    }
+  }
+
   if (onboardingStep) {
     if (onboardingStep === "welcome" || onboardingStep === "mode") {
       return (
@@ -437,9 +531,30 @@ export function App() {
             if (mode === "local") {
               beginLocalOnboarding();
             } else {
-              completeOrganizationOnboarding();
+              setSelectedMode("organization");
+              setOnboardingStep("organization_setup");
             }
           }}
+        />
+      );
+    }
+
+    if (onboardingStep === "organization_setup") {
+      return (
+        <OrganizationOnboardingPage
+          apiKey={organizationApiKey}
+          baseUrl={organizationBaseUrl}
+          onApiKeyChange={(value) => setOrganizationApiKey(value)}
+          onBack={() => setOnboardingStep("mode")}
+          onBaseUrlChange={(value) => {
+            setOrganizationBaseUrl(value);
+            setOrganizationSetupStatus("idle");
+            setOrganizationSetupMessage("Enter your server URL, then verify the connection.");
+          }}
+          onCheckConnection={checkOrganizationConnection}
+          onContinue={completeOrganizationOnboarding}
+          status={organizationSetupStatus}
+          statusMessage={organizationSetupMessage}
         />
       );
     }
@@ -529,6 +644,7 @@ export function App() {
             backendHealth={backendHealth}
             sessionState={sessionState}
             audioDevices={audioDevices}
+            organizationBaseUrl={selectedMode === "organization" ? organizationBaseUrl : undefined}
           />
         ) : (
           <DiagnosticsPage
