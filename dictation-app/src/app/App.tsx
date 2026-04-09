@@ -19,6 +19,7 @@ import {
   type LocalOnboardingStage,
 } from "../pages/LocalOnboardingPage";
 import { OrganizationOnboardingPage } from "../pages/OrganizationOnboardingPage";
+import { PermissionOnboardingPage } from "../pages/PermissionOnboardingPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WelcomePage } from "../pages/WelcomePage";
 import { useAppState } from "../state/appState";
@@ -105,7 +106,15 @@ export function App() {
       : "organization";
   });
   const [onboardingStep, setOnboardingStep] = useState<
-    "welcome" | "mode" | "local_setup" | "local_demo" | "local_test" | "organization_setup" | null
+    | "welcome"
+    | "mode"
+    | "local_setup"
+    | "local_demo"
+    | "local_permissions"
+    | "local_test"
+    | "organization_setup"
+    | "organization_permissions"
+    | null
   >(() => {
     if (typeof window === "undefined") {
       return null;
@@ -246,6 +255,12 @@ export function App() {
       console.error("Failed to update runtime mode", error);
     });
   }, [organizationBaseUrl, selectedMode]);
+
+  useEffect(() => {
+    if (onboardingStep === "local_permissions" || onboardingStep === "organization_permissions") {
+      void loadPermissionStatus();
+    }
+  }, [onboardingStep]);
 
   useEffect(() => {
     let isMounted = true;
@@ -612,9 +627,37 @@ export function App() {
             setOrganizationSetupMessage("Enter your server URL, then verify the connection.");
           }}
           onCheckConnection={checkOrganizationConnection}
-          onContinue={completeOrganizationOnboarding}
+          onContinue={() => setOnboardingStep("organization_permissions")}
           status={organizationSetupStatus}
           statusMessage={organizationSetupMessage}
+        />
+      );
+    }
+
+    if (onboardingStep === "organization_permissions") {
+      return (
+        <PermissionOnboardingPage
+          mode="organization"
+          permissionStatus={permissionStatus}
+          isRefreshingPermissions={isRefreshingPermissions}
+          onBack={() => setOnboardingStep("organization_setup")}
+          onContinue={completeOrganizationOnboarding}
+          onRefreshPermissions={refreshPermissionStatus}
+          onOpenPermissionSettings={openPermissionSettings}
+        />
+      );
+    }
+
+    if (onboardingStep === "local_permissions") {
+      return (
+        <PermissionOnboardingPage
+          mode="local"
+          permissionStatus={permissionStatus}
+          isRefreshingPermissions={isRefreshingPermissions}
+          onBack={() => setOnboardingStep("local_demo")}
+          onContinue={() => setOnboardingStep("local_test")}
+          onRefreshPermissions={refreshPermissionStatus}
+          onOpenPermissionSettings={openPermissionSettings}
         />
       );
     }
@@ -636,8 +679,8 @@ export function App() {
         detectedStatus={localSetupStatus?.status}
         missingItems={localSetupStatus?.missing_items}
         onBack={() => setOnboardingStep("mode")}
-        onSkipDemo={() => setOnboardingStep("local_test")}
-        onContinueFromDemo={() => setOnboardingStep("local_test")}
+        onSkipDemo={() => setOnboardingStep("local_permissions")}
+        onContinueFromDemo={() => setOnboardingStep("local_permissions")}
         onComplete={finishLocalOnboarding}
       />
     );
