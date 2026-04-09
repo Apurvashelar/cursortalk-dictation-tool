@@ -1,4 +1,4 @@
-use crate::app_state::{AppState, SessionSnapshot, SessionStatus, SESSION_EVENT};
+use crate::app_state::{AppState, RuntimeMode, SessionSnapshot, SessionStatus, SESSION_EVENT};
 use crate::cleanup;
 use crate::config::AppConfig;
 use crate::local_setup;
@@ -28,6 +28,29 @@ pub fn get_app_status(state: tauri::State<'_, AppState>) -> String {
 #[tauri::command]
 pub fn get_config() -> AppConfig {
     AppConfig::default()
+}
+
+#[tauri::command]
+pub fn set_runtime_mode(
+    mode: String,
+    organization_base_url: Option<String>,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "failed to lock runtime settings".to_string())?;
+
+    runtime.mode = if mode == "local" {
+        RuntimeMode::Local
+    } else {
+        RuntimeMode::Organization
+    };
+    runtime.organization_base_url = organization_base_url
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty());
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -206,8 +229,25 @@ async fn stop_recording_internal(
         .clone()
         .ok_or_else(|| "recording path missing after stop".to_string())?;
     let config = AppConfig::default();
+    let (runtime_mode, organization_base_url) = {
+        let runtime = state
+            .runtime
+            .lock()
+            .map_err(|_| "failed to lock runtime settings".to_string())?;
+        (runtime.mode.clone(), runtime.organization_base_url.clone())
+    };
+    let stt_model_dir = match runtime_mode {
+        RuntimeMode::Local => {
+            let local_status = local_setup::detect_local_setup();
+            if local_status.status == "missing" {
+                return Err("Local setup is not complete yet.".to_string());
+            }
+            local_status.stt_model_dir
+        }
+        RuntimeMode::Organization => config.stt_model_dir.clone(),
+    };
 
-    let transcription = stt::transcribe_wav(&recorded_path, &config.stt_model_dir)
+    let transcription = stt::transcribe_wav(&recorded_path, &stt_model_dir)
         .map_err(|error| error.to_string())?;
 
     let cleaning_snapshot = {
@@ -228,9 +268,33 @@ async fn stop_recording_internal(
         .clone()
         .unwrap_or_default();
 
-    let cleanup_result = match cleanup::clean_text(&config.cleanup_url, &raw_transcript).await {
-        Ok(result) => result,
-        Err(error) => cleanup::fallback_from_raw(&raw_transcript, &error.to_string()),
+    let cleanup_result = match runtime_mode {
+        RuntimeMode::Local => {
+            let local_status = local_setup::detect_local_setup();
+            let mut local_server = state
+                .local_cleanup_server
+                .lock()
+                .map_err(|_| "failed to lock local cleanup server state".to_string())?;
+
+            match cleanup::clean_text_local(
+                &mut local_server,
+                &local_status.cleanup_model_dir,
+                &raw_transcript,
+            ) {
+                Ok(result) => result,
+                Err(error) => cleanup::fallback_from_raw(&raw_transcript, &error.to_string()),
+            }
+        }
+        RuntimeMode::Organization => {
+            let cleanup_url = organization_base_url
+                .map(|base_url| format!("{base_url}/clean"))
+                .unwrap_or_else(|| config.cleanup_url.clone());
+
+            match cleanup::clean_text(&cleanup_url, &raw_transcript).await {
+                Ok(result) => result,
+                Err(error) => cleanup::fallback_from_raw(&raw_transcript, &error.to_string()),
+            }
+        }
     };
 
     let final_snapshot = {

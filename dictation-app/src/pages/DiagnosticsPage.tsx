@@ -122,7 +122,7 @@ export function DiagnosticsPage({
               <input
                 value={
                   sessionState.cleanup_model_version
-                    ? `${sessionState.used_cleanup_fallback ? "Fallback" : "Remote"} • ${
+                    ? `${sessionState.used_cleanup_fallback ? "Fallback" : sessionState.cleanup_source === "local" ? "Local" : "Remote"} • ${
                         sessionState.cleanup_model_version
                       } • ${sessionState.cleanup_latency_ms ?? 0} ms`
                     : "Not available"

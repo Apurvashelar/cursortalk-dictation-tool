@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::{process::Child, sync::Mutex};
 
 use serde::Serialize;
 
@@ -27,6 +27,7 @@ pub struct SessionSnapshot {
     pub stt_latency_ms: Option<u64>,
     pub cleanup_latency_ms: Option<u64>,
     pub cleanup_model_version: Option<String>,
+    pub cleanup_source: Option<String>,
     pub used_cleanup_fallback: bool,
     pub final_output: Option<String>,
     pub last_paste_message: Option<String>,
@@ -35,6 +36,25 @@ pub struct SessionSnapshot {
 pub struct AppState {
     pub session: Mutex<SessionRuntime>,
     pub recorder: RecorderController,
+    pub runtime: Mutex<RuntimeSettings>,
+    pub local_cleanup_server: Mutex<LocalCleanupServerState>,
+}
+
+#[derive(Clone)]
+pub enum RuntimeMode {
+    Local,
+    Organization,
+}
+
+#[derive(Clone)]
+pub struct RuntimeSettings {
+    pub mode: RuntimeMode,
+    pub organization_base_url: Option<String>,
+}
+
+pub struct LocalCleanupServerState {
+    pub child: Option<Child>,
+    pub model_path: Option<String>,
 }
 
 pub struct SessionRuntime {
@@ -71,6 +91,14 @@ impl Default for AppState {
                 last_error: None,
             }),
             recorder: RecorderController::new(),
+            runtime: Mutex::new(RuntimeSettings {
+                mode: RuntimeMode::Organization,
+                organization_base_url: None,
+            }),
+            local_cleanup_server: Mutex::new(LocalCleanupServerState {
+                child: None,
+                model_path: None,
+            }),
         }
     }
 }
@@ -96,7 +124,7 @@ impl SessionRuntime {
             ),
             SessionStatus::Cleaning => (
                 "cleaning".to_string(),
-                "Sending transcript to the hosted cleanup backend.".to_string(),
+                "Running cleanup for the transcript.".to_string(),
             ),
             SessionStatus::Pasting => (
                 "pasting".to_string(),
@@ -138,6 +166,7 @@ impl SessionRuntime {
             stt_latency_ms: transcription.as_ref().map(|result| result.latency_ms),
             cleanup_latency_ms: cleanup.as_ref().map(|result| result.latency_ms),
             cleanup_model_version: cleanup.as_ref().map(|result| result.model_version.clone()),
+            cleanup_source: cleanup.as_ref().map(|result| result.source.clone()),
             used_cleanup_fallback: cleanup
                 .as_ref()
                 .map(|result| result.used_fallback)

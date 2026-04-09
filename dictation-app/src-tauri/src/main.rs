@@ -31,6 +31,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::get_app_status,
             commands::get_config,
+            commands::set_runtime_mode,
             commands::get_backend_health,
             commands::check_backend_health_with_urls,
             commands::get_session_state,

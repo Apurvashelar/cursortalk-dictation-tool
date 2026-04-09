@@ -39,6 +39,7 @@ export type SessionState = {
   stt_latency_ms: number | null;
   cleanup_latency_ms: number | null;
   cleanup_model_version: string | null;
+  cleanup_source: string | null;
   used_cleanup_fallback: boolean;
   final_output: string | null;
   last_paste_message: string | null;

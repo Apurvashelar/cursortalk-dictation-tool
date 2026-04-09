@@ -55,6 +55,7 @@ const defaultSessionState: SessionState = {
   stt_latency_ms: null,
   cleanup_latency_ms: null,
   cleanup_model_version: null,
+  cleanup_source: null,
   used_cleanup_fallback: false,
   final_output: null,
   last_paste_message: null,
@@ -212,6 +213,16 @@ export function App() {
     // The initial check should run once after the shell mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void invoke("set_runtime_mode", {
+      mode: selectedMode,
+      organizationBaseUrl:
+        selectedMode === "organization" ? normalizeBaseUrl(organizationBaseUrl) : null,
+    }).catch((error) => {
+      console.error("Failed to update runtime mode", error);
+    });
+  }, [organizationBaseUrl, selectedMode]);
 
   useEffect(() => {
     let isMounted = true;
