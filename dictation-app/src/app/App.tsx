@@ -319,10 +319,10 @@ export function App() {
     setLocalSetupStepItems(localPreflightSteps);
     const timeouts: number[] = [];
 
-    const queueDemoTransition = (delayMs: number) => {
+    const queuePermissionsTransition = (delayMs: number) => {
       const timeoutId = window.setTimeout(() => {
         if (isActive) {
-          setOnboardingStep("local_demo");
+          setOnboardingStep("local_permissions");
         }
       }, delayMs);
 
@@ -353,7 +353,7 @@ export function App() {
         if (status.status === "complete") {
           setLocalSetupStepItems([...localPreflightSteps, "Setup already completed"]);
           setLocalSetupStepIndex(localPreflightSteps.length);
-          queueDemoTransition(1200);
+          queuePermissionsTransition(1200);
         }
       }, localPreflightSteps.length * 220 + 60);
 
@@ -414,7 +414,7 @@ export function App() {
             setLocalSetupStatus(finalStatus);
             setLocalSetupStepItems(localInstallSteps);
             setLocalSetupStepIndex(localInstallSteps.length - 1);
-            queueDemoTransition(900);
+            queuePermissionsTransition(900);
           } catch (error) {
             if (!isActive) {
               return;
@@ -654,8 +654,8 @@ export function App() {
           mode="local"
           permissionStatus={permissionStatus}
           isRefreshingPermissions={isRefreshingPermissions}
-          onBack={() => setOnboardingStep("local_demo")}
-          onContinue={() => setOnboardingStep("local_test")}
+          onBack={() => setOnboardingStep("mode")}
+          onContinue={() => setOnboardingStep("local_demo")}
           onRefreshPermissions={refreshPermissionStatus}
           onOpenPermissionSettings={openPermissionSettings}
         />
@@ -679,8 +679,8 @@ export function App() {
         detectedStatus={localSetupStatus?.status}
         missingItems={localSetupStatus?.missing_items}
         onBack={() => setOnboardingStep("mode")}
-        onSkipDemo={() => setOnboardingStep("local_permissions")}
-        onContinueFromDemo={() => setOnboardingStep("local_permissions")}
+        onSkipDemo={() => setOnboardingStep("local_test")}
+        onContinueFromDemo={() => setOnboardingStep("local_test")}
         onComplete={finishLocalOnboarding}
       />
     );

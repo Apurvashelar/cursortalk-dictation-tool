@@ -24,7 +24,7 @@ export function PermissionOnboardingPage({
   onRefreshPermissions,
   onOpenPermissionSettings,
 }: PermissionOnboardingPageProps) {
-  const continueLabel = mode === "local" ? "Continue to test" : "Continue";
+  const continueLabel = mode === "local" ? "Continue to demo" : "Continue";
 
   return (
     <BackgroundPaths>
@@ -53,8 +53,9 @@ export function PermissionOnboardingPage({
                 Permissions
               </h1>
               <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                Before your first {mode === "local" ? "local" : "organization"} test, confirm the
-                app can record and paste into other desktop apps.
+                Before your first {mode === "local" ? "local" : "organization"}{" "}
+                {mode === "local" ? "demo and test" : "session"}, confirm the app can record and
+                paste into other desktop apps.
               </p>
             </div>
 
