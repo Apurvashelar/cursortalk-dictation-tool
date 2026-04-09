@@ -1,7 +1,10 @@
-use std::process::Command;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use anyhow::{anyhow, Context, Result};
+use hound::{SampleFormat, WavReader};
 use serde::{Deserialize, Serialize};
+use sherpa_rs::transducer::{TransducerConfig, TransducerRecognizer};
 
 #[derive(Clone, Serialize)]
 pub struct SttStatus {
@@ -17,34 +20,147 @@ pub struct TranscriptionResult {
     pub sample_rate: u32,
 }
 
+struct CachedRecognizer {
+    model_dir: String,
+    recognizer: TransducerRecognizer,
+}
+
+static RECOGNIZER: OnceLock<Mutex<Option<CachedRecognizer>>> = OnceLock::new();
+
 pub fn current_status() -> SttStatus {
     SttStatus {
         engine: "Parakeet".to_string(),
         state: "ready".to_string(),
-        message: "Audio capture is wired. Recorded WAV files are transcribed through the local Parakeet helper."
-            .to_string(),
+        message:
+            "Audio capture is wired. Recorded WAV files are transcribed through the native Rust Parakeet recognizer."
+                .to_string(),
     }
 }
 
 pub fn transcribe_wav(audio_path: &str, model_dir: &str) -> Result<TranscriptionResult> {
-    let script_path = format!("{}/../scripts/parakeet_transcribe.py", env!("CARGO_MANIFEST_DIR"));
+    let started_at = Instant::now();
+    let (sample_rate, samples) = read_wav_samples(audio_path)?;
 
-    let output = Command::new("python3")
-        .arg(script_path)
-        .arg("--audio")
-        .arg(audio_path)
-        .arg("--model-dir")
-        .arg(model_dir)
-        .output()
-        .context("failed to run Parakeet transcription helper")?;
+    let transcript = with_recognizer(model_dir, |recognizer| {
+        Ok(recognizer.transcribe(sample_rate, &samples))
+    })?;
 
-    if !output.status.success() {
-        return Err(anyhow!(
-            "Parakeet helper failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+    Ok(TranscriptionResult {
+        transcript: transcript.trim().to_string(),
+        latency_ms: started_at.elapsed().as_millis() as u64,
+        sample_rate,
+    })
+}
+
+fn with_recognizer<T>(
+    model_dir: &str,
+    run: impl FnOnce(&mut TransducerRecognizer) -> Result<T>,
+) -> Result<T> {
+    let recognizer_slot = RECOGNIZER.get_or_init(|| Mutex::new(None));
+    let mut guard = recognizer_slot
+        .lock()
+        .map_err(|_| anyhow!("failed to lock native STT recognizer"))?;
+
+    let needs_init = guard
+        .as_ref()
+        .map(|cached| cached.model_dir != model_dir)
+        .unwrap_or(true);
+
+    if needs_init {
+        let recognizer = build_recognizer(model_dir)?;
+        *guard = Some(CachedRecognizer {
+            model_dir: model_dir.to_string(),
+            recognizer,
+        });
     }
 
-    serde_json::from_slice::<TranscriptionResult>(&output.stdout)
-        .context("failed to parse Parakeet helper output")
+    let cached = guard
+        .as_mut()
+        .ok_or_else(|| anyhow!("native STT recognizer was not initialized"))?;
+
+    run(&mut cached.recognizer)
+}
+
+fn build_recognizer(model_dir: &str) -> Result<TransducerRecognizer> {
+    let config = TransducerConfig {
+        encoder: format!("{model_dir}/encoder.int8.onnx"),
+        decoder: format!("{model_dir}/decoder.int8.onnx"),
+        joiner: format!("{model_dir}/joiner.int8.onnx"),
+        tokens: format!("{model_dir}/tokens.txt"),
+        num_threads: 1,
+        sample_rate: 16_000,
+        feature_dim: 80,
+        decoding_method: "greedy_search".to_string(),
+        model_type: "transducer".to_string(),
+        ..Default::default()
+    };
+
+    TransducerRecognizer::new(config)
+        .map_err(|error| anyhow!("failed to initialize native Parakeet recognizer: {error}"))
+}
+
+fn read_wav_samples(audio_path: &str) -> Result<(u32, Vec<f32>)> {
+    let mut reader = WavReader::open(audio_path)
+        .with_context(|| format!("failed to open recorded WAV file at {audio_path}"))?;
+    let spec = reader.spec();
+
+    let samples = match (spec.sample_format, spec.bits_per_sample) {
+        (SampleFormat::Int, 16) => {
+            let raw = reader
+                .samples::<i16>()
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .context("failed to read 16-bit PCM samples")?;
+            normalize_i16_samples(raw, spec.channels)
+        }
+        (SampleFormat::Int, 32) => {
+            let raw = reader
+                .samples::<i32>()
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .context("failed to read 32-bit PCM samples")?;
+            normalize_i32_samples(raw, spec.channels)
+        }
+        (SampleFormat::Float, 32) => {
+            let raw = reader
+                .samples::<f32>()
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .context("failed to read 32-bit float samples")?;
+            fold_channels(raw, spec.channels)
+        }
+        _ => {
+            return Err(anyhow!(
+                "unsupported WAV format for native STT: {:?} {}-bit",
+                spec.sample_format,
+                spec.bits_per_sample
+            ));
+        }
+    };
+
+    Ok((spec.sample_rate, samples))
+}
+
+fn normalize_i16_samples(samples: Vec<i16>, channels: u16) -> Vec<f32> {
+    let mono = samples
+        .into_iter()
+        .map(|sample| sample as f32 / i16::MAX as f32)
+        .collect::<Vec<_>>();
+    fold_channels(mono, channels)
+}
+
+fn normalize_i32_samples(samples: Vec<i32>, channels: u16) -> Vec<f32> {
+    let mono = samples
+        .into_iter()
+        .map(|sample| sample as f32 / i32::MAX as f32)
+        .collect::<Vec<_>>();
+    fold_channels(mono, channels)
+}
+
+fn fold_channels(samples: Vec<f32>, channels: u16) -> Vec<f32> {
+    if channels <= 1 {
+        return samples;
+    }
+
+    samples
+        .chunks(channels as usize)
+        .map(|chunk| chunk.iter().copied().sum::<f32>() / chunk.len() as f32)
+        .collect()
 }
