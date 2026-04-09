@@ -11,6 +11,9 @@ type LocalOnboardingPageProps = {
   stage: LocalOnboardingStage;
   progressStepLabel: string;
   progressValue: number;
+  statusMessage?: string;
+  detectedStatus?: "complete" | "partial" | "missing";
+  missingItems?: string[];
   onBack: () => void;
   onSkipDemo: () => void;
   onContinueFromDemo: () => void;
@@ -66,9 +69,15 @@ function Shell({
 function SetupStage({
   progressStepLabel,
   progressValue,
+  statusMessage,
+  detectedStatus,
+  missingItems,
 }: {
   progressStepLabel: string;
   progressValue: number;
+  statusMessage?: string;
+  detectedStatus?: "complete" | "partial" | "missing";
+  missingItems?: string[];
 }) {
   return (
     <div className="rounded-[34px] border border-black/10 bg-white/78 p-8 shadow-[0_30px_120px_rgba(15,23,42,0.1)] backdrop-blur-2xl md:p-10">
@@ -83,6 +92,17 @@ function SetupStage({
           Downloading and preparing local dictation models on this machine.
         </p>
       </div>
+
+      {statusMessage ? (
+        <div className="mx-auto mt-6 max-w-3xl rounded-[22px] border border-black/8 bg-black/[0.03] px-5 py-4 text-sm text-slate-700">
+          <p>{statusMessage}</p>
+          {missingItems && missingItems.length > 0 ? (
+            <p className="mt-2 text-[13px] text-slate-500">
+              Missing: {missingItems.join(", ")}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mx-auto mt-10 max-w-3xl">
         <div className="overflow-hidden rounded-full bg-slate-200">
@@ -106,25 +126,54 @@ function SetupStage({
         </div>
       </div>
 
-      <div className="mx-auto mt-10 grid max-w-3xl gap-3 md:grid-cols-2">
-        {setupSteps.map((step) => {
-          const isActive = step === progressStepLabel;
-          const isComplete = setupSteps.indexOf(step) < setupSteps.indexOf(progressStepLabel);
+      <div className="mx-auto mt-10 flex max-w-2xl justify-center">
+        <div className="flex flex-col gap-4">
+          {setupSteps.map((step, index) => {
+            const currentIndex = setupSteps.indexOf(progressStepLabel as (typeof setupSteps)[number]);
+            const isActive = step === progressStepLabel;
+            const isComplete = index < currentIndex;
 
-          return (
-            <div
-              className="flex items-center gap-3 rounded-2xl border border-black/8 bg-white/70 px-4 py-3"
-              key={step}
-            >
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${
-                  isComplete ? "bg-slate-950" : isActive ? "bg-slate-700" : "bg-slate-300"
-                }`}
-              />
-              <span className={isActive ? "text-slate-900" : "text-slate-600"}>{step}</span>
-            </div>
-          );
-        })}
+            return (
+              <div className="flex items-start gap-3" key={step}>
+                <div className="flex flex-col items-center">
+                  <span
+                    className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                      detectedStatus === "complete"
+                        ? "bg-black"
+                        : isComplete
+                          ? "bg-black"
+                          : isActive
+                            ? "bg-slate-700"
+                            : "bg-slate-300"
+                    }`}
+                  />
+                  {index < setupSteps.length - 1 ? (
+                    <span
+                      className={`mt-2 h-7 w-px ${
+                        detectedStatus === "complete"
+                          ? "bg-black/70"
+                          : isComplete
+                            ? "bg-black/70"
+                            : "bg-slate-200"
+                      }`}
+                    />
+                  ) : null}
+                </div>
+                <span
+                  className={`min-w-[220px] text-[13px] leading-5 ${
+                    isActive
+                      ? "font-medium text-slate-900 opacity-100"
+                      : isComplete
+                        ? "font-medium text-slate-800 opacity-100"
+                        : "font-normal text-slate-500 opacity-55"
+                  }`}
+                >
+                  {step}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -250,6 +299,9 @@ export function LocalOnboardingPage({
   stage,
   progressStepLabel,
   progressValue,
+  statusMessage,
+  detectedStatus,
+  missingItems,
   onBack,
   onSkipDemo,
   onContinueFromDemo,
@@ -258,7 +310,13 @@ export function LocalOnboardingPage({
   return (
     <Shell onBack={onBack}>
       {stage === "setup" ? (
-        <SetupStage progressStepLabel={progressStepLabel} progressValue={progressValue} />
+        <SetupStage
+          progressStepLabel={progressStepLabel}
+          progressValue={progressValue}
+          statusMessage={statusMessage}
+          detectedStatus={detectedStatus}
+          missingItems={missingItems}
+        />
       ) : stage === "demo" ? (
         <DemoStage onContinueFromDemo={onContinueFromDemo} onSkipDemo={onSkipDemo} />
       ) : (

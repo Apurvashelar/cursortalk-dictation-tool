@@ -5,6 +5,7 @@ import type {
   AppConfig,
   AudioInputDevice,
   BackendHealth,
+  LocalSetupStatus,
   SessionState,
   SttStatus,
 } from "../api/backend";
@@ -85,6 +86,7 @@ export function App() {
     return window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true" ? null : "welcome";
   });
   const [localSetupStepIndex, setLocalSetupStepIndex] = useState(0);
+  const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -198,27 +200,72 @@ export function App() {
       return;
     }
 
+    let isActive = true;
     setLocalSetupStepIndex(0);
-
+    setLocalSetupStatus(null);
     const timeouts: number[] = [];
 
-    localSetupSteps.forEach((_, index) => {
-      const timeoutId = window.setTimeout(() => {
-        setLocalSetupStepIndex(index);
+    const runSetupFlow = (status: LocalSetupStatus) => {
+      setLocalSetupStatus(status);
 
-        if (index === localSetupSteps.length - 1) {
-          const completeTimeoutId = window.setTimeout(() => {
+      if (status.status === "complete") {
+        setLocalSetupStepIndex(localSetupSteps.length - 1);
+        const completeTimeoutId = window.setTimeout(() => {
+          if (isActive) {
             setOnboardingStep("local_demo");
-          }, 900);
+          }
+        }, 1300);
 
-          timeouts.push(completeTimeoutId);
+        timeouts.push(completeTimeoutId);
+        return;
+      }
+
+      localSetupSteps.forEach((_, index) => {
+        const timeoutId = window.setTimeout(() => {
+          if (!isActive) {
+            return;
+          }
+
+          setLocalSetupStepIndex(index);
+
+          if (index === localSetupSteps.length - 1) {
+            const completeTimeoutId = window.setTimeout(() => {
+              if (isActive) {
+                setOnboardingStep("local_demo");
+              }
+            }, 900);
+
+            timeouts.push(completeTimeoutId);
+          }
+        }, index * 1200);
+
+        timeouts.push(timeoutId);
+      });
+    };
+
+    void invoke<LocalSetupStatus>("get_local_setup_status")
+      .then((status) => {
+        if (isActive) {
+          runSetupFlow(status);
         }
-      }, index * 1200);
-
-      timeouts.push(timeoutId);
-    });
+      })
+      .catch((error) => {
+        if (isActive) {
+          console.error("Failed to detect local setup", error);
+          runSetupFlow({
+            status: "missing",
+            message: "Local models were not found yet. Download is required for setup.",
+            storage_path: "",
+            stt_model_dir: "",
+            cleanup_model_dir: "",
+            missing_items: [],
+            detected_legacy_cleanup: false,
+          });
+        }
+      });
 
     return () => {
+      isActive = false;
       timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
   }, [onboardingStep]);
@@ -320,6 +367,9 @@ export function App() {
         stage={localOnboardingStage}
         progressStepLabel={localSetupSteps[localSetupStepIndex] ?? localSetupSteps[0]}
         progressValue={((localSetupStepIndex + 1) / localSetupSteps.length) * 100}
+        statusMessage={localSetupStatus?.message}
+        detectedStatus={localSetupStatus?.status}
+        missingItems={localSetupStatus?.missing_items}
         onBack={() => setOnboardingStep("mode")}
         onSkipDemo={() => setOnboardingStep("local_test")}
         onContinueFromDemo={() => setOnboardingStep("local_test")}

@@ -2,6 +2,7 @@ mod app_state;
 mod cleanup;
 mod commands;
 mod config;
+mod local_setup;
 mod paste;
 mod recorder;
 mod stt;
@@ -36,6 +37,7 @@ fn main() {
             commands::start_recording,
             commands::stop_recording,
             commands::get_stt_status,
+            commands::get_local_setup_status,
             commands::paste_latest_output
         ])
         .run(tauri::generate_context!())

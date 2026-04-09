@@ -54,3 +54,13 @@ export type SttStatus = {
   state: string;
   message: string;
 };
+
+export type LocalSetupStatus = {
+  status: "complete" | "partial" | "missing";
+  message: string;
+  storage_path: string;
+  stt_model_dir: string;
+  cleanup_model_dir: string;
+  missing_items: string[];
+  detected_legacy_cleanup: boolean;
+};

@@ -1,6 +1,7 @@
 use crate::app_state::{AppState, SessionSnapshot, SessionStatus, SESSION_EVENT};
 use crate::cleanup;
 use crate::config::AppConfig;
+use crate::local_setup;
 use crate::paste;
 use crate::recorder;
 use crate::stt;
@@ -94,6 +95,11 @@ pub async fn stop_recording(
 #[tauri::command]
 pub fn get_stt_status() -> stt::SttStatus {
     stt::current_status()
+}
+
+#[tauri::command]
+pub fn get_local_setup_status() -> local_setup::LocalSetupStatus {
+    local_setup::detect_local_setup()
 }
 
 #[tauri::command]
