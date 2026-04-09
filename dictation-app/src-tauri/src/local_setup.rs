@@ -1,6 +1,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use anyhow::{anyhow, Context, Result};
@@ -10,6 +11,19 @@ use tauri::{AppHandle, Emitter};
 use crate::config::AppConfig;
 
 pub const LOCAL_SETUP_PROGRESS_EVENT: &str = "local-setup-progress";
+
+const STT_REQUIRED_FILES: [&str; 4] = [
+    "encoder.int8.onnx",
+    "decoder.int8.onnx",
+    "joiner.int8.onnx",
+    "tokens.txt",
+];
+const STT_DOWNLOAD_URL: &str =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2";
+const STT_ARCHIVE_FILE_NAME: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2";
+const STT_ARCHIVE_ROOT_DIR: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8";
+const CLEANUP_MODEL_FILE_NAME: &str = "dictation-cleanup-q4km.gguf";
+const CLEANUP_DOWNLOAD_URL_ENV: &str = "VOICEFLOW_LOCAL_CLEANUP_MODEL_URL";
 
 #[derive(Clone, Serialize)]
 pub struct LocalSetupStatus {
@@ -56,13 +70,6 @@ struct SetupInspection {
     detected_legacy_cleanup: bool,
 }
 
-const STT_REQUIRED_FILES: [&str; 4] = [
-    "encoder.int8.onnx",
-    "decoder.int8.onnx",
-    "joiner.int8.onnx",
-    "tokens.txt",
-];
-
 pub fn detect_local_setup() -> LocalSetupStatus {
     let inspection = inspect_local_setup();
     let (status, message) = inspection.status_and_message();
@@ -104,6 +111,7 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
     )?;
     prepare_storage_directories(&initial.storage_path)?;
 
+    let downloads_dir = initial.storage_path.join("downloads");
     let mut reused_existing_files = false;
 
     emit_progress(
@@ -117,9 +125,7 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
             link_required_stt_files(&current.configured_stt_dir, &current.canonical_stt_dir)?;
             reused_existing_files = true;
         } else {
-            return Err(anyhow!(
-                "Speech model source was not found on this machine yet. A real download source still needs to be configured."
-            ));
+            download_and_install_stt_model(&downloads_dir, &current.canonical_stt_dir)?;
         }
     }
 
@@ -133,9 +139,17 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
         if let Some(source_file) = current.cleanup_source_file {
             link_cleanup_model(&source_file, &current.canonical_cleanup_dir)?;
             reused_existing_files = true;
+        } else if let Some(download_url) = cleanup_download_url() {
+            download_and_install_cleanup_model(
+                &download_url,
+                &downloads_dir,
+                &current.canonical_cleanup_dir,
+            )?;
         } else {
             return Err(anyhow!(
-                "Cleanup model source was not found on this machine yet. A real download source still needs to be configured."
+                "Cleanup model source was not found. Place {} in the project models folder or Desktop, or set {} to a downloadable URL.",
+                CLEANUP_MODEL_FILE_NAME,
+                CLEANUP_DOWNLOAD_URL_ENV
             ));
         }
     }
@@ -213,18 +227,20 @@ fn inspect_local_setup() -> SetupInspection {
     let stt_ready = canonical_stt_ready || configured_stt_ready;
 
     let canonical_cleanup_file = find_gguf_file(&canonical_cleanup_dir);
+    let workspace_cleanup_file = find_workspace_cleanup_file();
+    let desktop_cleanup_file = find_desktop_cleanup_file();
     let legacy_cleanup_file = find_legacy_cleanup_file();
     let cleanup_source_file = canonical_cleanup_file
         .clone()
+        .or_else(|| workspace_cleanup_file.clone())
+        .or_else(|| desktop_cleanup_file.clone())
         .or_else(|| legacy_cleanup_file.clone());
     let cleanup_ready = cleanup_source_file.is_some();
 
     let mut missing_items = Vec::new();
-
     if !stt_ready {
         missing_items.push("speech model files".to_string());
     }
-
     if !cleanup_ready {
         missing_items.push("cleanup model files".to_string());
     }
@@ -269,6 +285,55 @@ fn prepare_storage_directories(storage_path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn download_and_install_stt_model(downloads_dir: &Path, target_dir: &Path) -> Result<()> {
+    let archive_path = downloads_dir.join(STT_ARCHIVE_FILE_NAME);
+    let extracted_root = downloads_dir.join(STT_ARCHIVE_ROOT_DIR);
+
+    download_file(STT_DOWNLOAD_URL, &archive_path, "speech model archive")?;
+
+    if extracted_root.exists() {
+        fs::remove_dir_all(&extracted_root)
+            .with_context(|| format!("failed to clear {}", extracted_root.display()))?;
+    }
+
+    run_process(
+        Command::new("tar")
+            .arg("-xjf")
+            .arg(&archive_path)
+            .arg("-C")
+            .arg(downloads_dir),
+        "extract speech model archive",
+    )?;
+
+    if !required_stt_files_exist(&extracted_root) {
+        return Err(anyhow!(
+            "Speech model archive extracted, but the expected Parakeet files were not found."
+        ));
+    }
+
+    copy_required_stt_files(&extracted_root, target_dir)?;
+
+    let _ = fs::remove_dir_all(&extracted_root);
+    let _ = fs::remove_file(&archive_path);
+
+    Ok(())
+}
+
+fn download_and_install_cleanup_model(
+    download_url: &str,
+    downloads_dir: &Path,
+    target_dir: &Path,
+) -> Result<()> {
+    let downloaded_path = downloads_dir.join(CLEANUP_MODEL_FILE_NAME);
+    let target_path = target_dir.join(CLEANUP_MODEL_FILE_NAME);
+
+    download_file(download_url, &downloaded_path, "cleanup model")?;
+    move_or_copy_file(&downloaded_path, &target_path)?;
+
+    let _ = fs::remove_file(&downloaded_path);
+    Ok(())
+}
+
 fn link_required_stt_files(source_dir: &Path, target_dir: &Path) -> Result<()> {
     for file_name in STT_REQUIRED_FILES {
         let source = source_dir.join(file_name);
@@ -284,12 +349,53 @@ fn link_required_stt_files(source_dir: &Path, target_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn copy_required_stt_files(source_dir: &Path, target_dir: &Path) -> Result<()> {
+    for file_name in STT_REQUIRED_FILES {
+        let source = source_dir.join(file_name);
+        let target = target_dir.join(file_name);
+
+        if !source.exists() {
+            return Err(anyhow!("speech model file is missing: {}", source.display()));
+        }
+
+        move_or_copy_file(&source, &target)?;
+    }
+
+    Ok(())
+}
+
 fn link_cleanup_model(source_file: &Path, target_dir: &Path) -> Result<()> {
     let file_name = source_file
         .file_name()
         .ok_or_else(|| anyhow!("cleanup model file name could not be resolved"))?;
     let target = target_dir.join(file_name);
     ensure_linked_file(source_file, &target)
+}
+
+fn move_or_copy_file(source: &Path, target: &Path) -> Result<()> {
+    if target.exists() || target.symlink_metadata().is_ok() {
+        if target.is_dir() {
+            fs::remove_dir_all(target)
+                .with_context(|| format!("failed to replace directory {}", target.display()))?;
+        } else {
+            fs::remove_file(target)
+                .with_context(|| format!("failed to replace file {}", target.display()))?;
+        }
+    }
+
+    match fs::rename(source, target) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            fs::copy(source, target).with_context(|| {
+                format!(
+                    "failed to copy local setup file from {} to {}",
+                    source.display(),
+                    target.display()
+                )
+            })?;
+            Ok(())
+        }
+    }
 }
 
 fn ensure_linked_file(source: &Path, target: &Path) -> Result<()> {
@@ -337,6 +443,58 @@ fn same_file_target(source: &Path, target: &Path) -> bool {
         Ok(existing_target) => existing_target == source,
         Err(_) => false,
     }
+}
+
+fn download_file(url: &str, target_path: &Path, label: &str) -> Result<()> {
+    let partial_path = target_path.with_extension("part");
+
+    if partial_path.exists() {
+        fs::remove_file(&partial_path)
+            .with_context(|| format!("failed to clear {}", partial_path.display()))?;
+    }
+
+    run_process(
+        Command::new("curl")
+            .arg("-L")
+            .arg("--fail")
+            .arg("--silent")
+            .arg("--show-error")
+            .arg("-o")
+            .arg(&partial_path)
+            .arg(url),
+        &format!("download {label}"),
+    )?;
+
+    if target_path.exists() {
+        fs::remove_file(target_path)
+            .with_context(|| format!("failed to replace {}", target_path.display()))?;
+    }
+
+    fs::rename(&partial_path, target_path)
+        .with_context(|| format!("failed to finalize {}", target_path.display()))?;
+    Ok(())
+}
+
+fn run_process(command: &mut Command, label: &str) -> Result<()> {
+    let output = command
+        .output()
+        .with_context(|| format!("failed to {label}"))?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let detail = if !stderr.trim().is_empty() {
+        stderr.trim().to_string()
+    } else if !stdout.trim().is_empty() {
+        stdout.trim().to_string()
+    } else {
+        "command failed without additional output".to_string()
+    };
+
+    Err(anyhow!("Failed to {label}: {detail}"))
 }
 
 fn write_local_setup_metadata(
@@ -393,16 +551,37 @@ fn find_gguf_file(dir: &Path) -> Option<PathBuf> {
                 .map(|extension| extension.eq_ignore_ascii_case("gguf"))
                 .unwrap_or(false);
 
-            if is_gguf {
-                Some(path)
-            } else {
-                None
-            }
+            if is_gguf { Some(path) } else { None }
         })
         .collect::<Vec<_>>();
 
     gguf_files.sort();
-    gguf_files.into_iter().next()
+    gguf_files
+        .iter()
+        .find(|path| {
+        path.file_name()
+            .and_then(|file_name| file_name.to_str())
+            .map(|file_name| file_name == CLEANUP_MODEL_FILE_NAME)
+            .unwrap_or(false)
+        })
+        .cloned()
+        .or_else(|| gguf_files.into_iter().next())
+}
+
+fn find_workspace_cleanup_file() -> Option<PathBuf> {
+    let workspace_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../Models")
+        .join(CLEANUP_MODEL_FILE_NAME);
+
+    workspace_path.exists().then_some(workspace_path)
+}
+
+fn find_desktop_cleanup_file() -> Option<PathBuf> {
+    let home_dir = env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("."));
+    let desktop_path = home_dir.join("Desktop").join(CLEANUP_MODEL_FILE_NAME);
+    desktop_path.exists().then_some(desktop_path)
 }
 
 fn find_legacy_cleanup_file() -> Option<PathBuf> {
@@ -412,6 +591,13 @@ fn find_legacy_cleanup_file() -> Option<PathBuf> {
 
     let legacy_models_dir = home_dir.join("llama.cpp").join("models");
     find_gguf_file(&legacy_models_dir)
+}
+
+fn cleanup_download_url() -> Option<String> {
+    env::var(CLEANUP_DOWNLOAD_URL_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn emit_progress(app: &AppHandle, step: &str, message: &str) -> Result<()> {
