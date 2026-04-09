@@ -32,8 +32,9 @@ function stateLabel(state: SessionState["state"]) {
     case "recording":
       return "Recording";
     case "transcribing":
+      return "Transcribing";
     case "cleaning":
-      return "Processing";
+      return "Cleaning";
     case "pasting":
       return "Pasting";
     case "error":

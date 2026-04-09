@@ -6,6 +6,9 @@ use crate::paste;
 use crate::recorder;
 use crate::stt;
 use serde::Serialize;
+use std::sync::mpsc;
+use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Serialize)]
@@ -257,8 +260,11 @@ async fn stop_recording_internal(
         RuntimeMode::Organization => config.stt_model_dir.clone(),
     };
 
-    let transcription = stt::transcribe_wav(&recorded_path, &stt_model_dir)
-        .map_err(|error| error.to_string())?;
+    let transcription = run_blocking_with_timeout(
+        "Native transcription",
+        Duration::from_secs(20),
+        move || stt::transcribe_wav(&recorded_path, &stt_model_dir).map_err(|error| error.to_string()),
+    )?;
 
     let cleaning_snapshot = {
         let mut session = state
@@ -281,16 +287,28 @@ async fn stop_recording_internal(
     let cleanup_result = match runtime_mode {
         RuntimeMode::Local => {
             let local_status = local_setup::detect_local_setup();
-            let mut local_server = state
-                .local_cleanup_server
-                .lock()
-                .map_err(|_| "failed to lock local cleanup server state".to_string())?;
+            let app_handle = app.clone();
+            let cleanup_model_dir = local_status.cleanup_model_dir.clone();
+            let cleanup_raw_transcript = raw_transcript.clone();
 
-            match cleanup::clean_text_local(
-                app,
-                &mut local_server,
-                &local_status.cleanup_model_dir,
-                &raw_transcript,
+            match run_blocking_with_timeout(
+                "Local cleanup",
+                Duration::from_secs(45),
+                move || {
+                    let state = app_handle.state::<AppState>();
+                    let mut local_server = state
+                        .local_cleanup_server
+                        .lock()
+                        .map_err(|_| "failed to lock local cleanup server state".to_string())?;
+
+                    cleanup::clean_text_local(
+                        &app_handle,
+                        &mut local_server,
+                        &cleanup_model_dir,
+                        &cleanup_raw_transcript,
+                    )
+                    .map_err(|error| error.to_string())
+                },
             ) {
                 Ok(result) => result,
                 Err(error) => cleanup::fallback_from_raw(&raw_transcript, &error.to_string()),
@@ -402,4 +420,28 @@ fn paste_latest_output_internal(
 
 fn emit_session_state(app: &AppHandle, snapshot: &SessionSnapshot) {
     let _ = app.emit(SESSION_EVENT, snapshot);
+}
+
+fn run_blocking_with_timeout<T: Send + 'static>(
+    label: &str,
+    timeout: Duration,
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let (tx, rx) = mpsc::sync_channel(1);
+    let label = label.to_string();
+
+    thread::spawn(move || {
+        let _ = tx.send(work());
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(result) => result,
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(format!(
+            "{label} timed out after {} seconds.",
+            timeout.as_secs()
+        )),
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Err(format!("{label} stopped before returning a result."))
+        }
+    }
 }

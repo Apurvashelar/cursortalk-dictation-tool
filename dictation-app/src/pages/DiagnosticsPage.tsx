@@ -7,6 +7,7 @@ import type {
 } from "../api/backend";
 
 type DiagnosticsPageProps = {
+  selectedMode: "local" | "organization";
   config: AppConfig | null;
   backendHealth: BackendHealth;
   sessionState: SessionState;
@@ -30,6 +31,7 @@ function statusLabel(status: BackendHealth["status"]) {
 }
 
 export function DiagnosticsPage({
+  selectedMode,
   config,
   backendHealth,
   sessionState,
@@ -39,6 +41,14 @@ export function DiagnosticsPage({
   refreshBackendHealth,
 }: DiagnosticsPageProps) {
   const defaultDevice = audioDevices.find((device) => device.is_default);
+  const cleanupResultValue =
+    sessionState.cleanup_model_version
+      ? `${sessionState.used_cleanup_fallback ? "Fallback" : sessionState.cleanup_source === "local" ? "Local" : "Remote"} • ${
+          sessionState.cleanup_model_version
+        } • ${sessionState.cleanup_latency_ms ?? 0} ms`
+      : sessionState.state === "transcribing" || sessionState.state === "cleaning"
+        ? "Pending"
+        : "Not available";
 
   return (
     <div className="page-shell">
@@ -106,27 +116,39 @@ export function DiagnosticsPage({
           <h3>Backend detail</h3>
           <div className="field-grid">
             <label className="field">
-              <span>Backend URL</span>
-              <input value={config?.cleanup_url ?? "http://127.0.0.1:8080/clean"} readOnly />
+              <span>Runtime mode</span>
+              <input value={selectedMode === "local" ? "Local" : "Organization"} readOnly />
             </label>
             <label className="field">
-              <span>Health URL</span>
-              <input value={config?.health_url ?? "http://127.0.0.1:8080/health"} readOnly />
+              <span>{selectedMode === "local" ? "Runtime target" : "Backend URL"}</span>
+              <input
+                value={
+                  selectedMode === "local"
+                    ? "Local cleanup runtime"
+                    : config?.cleanup_url ?? "http://127.0.0.1:8080/clean"
+                }
+                readOnly
+              />
             </label>
             <label className="field">
-              <span>Backend message</span>
-              <input value={backendHealth.message} readOnly />
+              <span>{selectedMode === "local" ? "Connection detail" : "Health URL"}</span>
+              <input
+                value={
+                  selectedMode === "local"
+                    ? "Local mode does not use the organization backend."
+                    : config?.health_url ?? "http://127.0.0.1:8080/health"
+                }
+                readOnly
+              />
             </label>
             <label className="field">
               <span>Cleanup result</span>
+              <input value={cleanupResultValue} readOnly />
+            </label>
+            <label className="field">
+              <span>Runtime message</span>
               <input
-                value={
-                  sessionState.cleanup_model_version
-                    ? `${sessionState.used_cleanup_fallback ? "Fallback" : sessionState.cleanup_source === "local" ? "Local" : "Remote"} • ${
-                        sessionState.cleanup_model_version
-                      } • ${sessionState.cleanup_latency_ms ?? 0} ms`
-                    : "Not available"
-                }
+                value={selectedMode === "local" ? sessionState.message : backendHealth.message}
                 readOnly
               />
             </label>

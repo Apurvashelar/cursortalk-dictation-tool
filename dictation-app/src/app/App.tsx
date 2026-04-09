@@ -668,6 +668,7 @@ export function App() {
           />
         ) : (
           <DiagnosticsPage
+            selectedMode={selectedMode}
             config={config}
             backendHealth={backendHealth}
             sessionState={sessionState}
