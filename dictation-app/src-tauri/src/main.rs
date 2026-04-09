@@ -38,6 +38,7 @@ fn main() {
             commands::stop_recording,
             commands::get_stt_status,
             commands::get_local_setup_status,
+            commands::run_local_setup,
             commands::paste_latest_output
         ])
         .run(tauri::generate_context!())

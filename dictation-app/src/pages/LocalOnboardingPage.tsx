@@ -9,6 +9,7 @@ export type LocalOnboardingStage = "setup" | "demo" | "test";
 
 type LocalOnboardingPageProps = {
   stage: LocalOnboardingStage;
+  stepItems: string[];
   progressStepLabel: string;
   progressValue: number;
   statusMessage?: string;
@@ -21,15 +22,6 @@ type LocalOnboardingPageProps = {
 };
 
 const DEMO_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
-
-const setupSteps = [
-  "Checking storage",
-  "Preparing local folders",
-  "Downloading speech model",
-  "Downloading cleanup model",
-  "Verifying files",
-  "Preparing local runtime",
-];
 
 function Shell({
   children,
@@ -67,12 +59,14 @@ function Shell({
 }
 
 function SetupStage({
+  stepItems,
   progressStepLabel,
   progressValue,
   statusMessage,
   detectedStatus,
   missingItems,
 }: {
+  stepItems: string[];
   progressStepLabel: string;
   progressValue: number;
   statusMessage?: string;
@@ -82,14 +76,15 @@ function SetupStage({
   return (
     <div className="rounded-[34px] border border-black/10 bg-white/78 p-8 shadow-[0_30px_120px_rgba(15,23,42,0.1)] backdrop-blur-2xl md:p-10">
       <div className="mx-auto max-w-3xl text-center">
-        <p className="text-sm font-medium uppercase tracking-[0.22em] text-slate-500">
-          Local mode
-        </p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+        <h1 className="text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
           Setting up Local mode
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-          Downloading and preparing local dictation models on this machine.
+          {detectedStatus === "complete"
+            ? "Checking the files already available on this machine."
+            : detectedStatus === "missing" || detectedStatus === "partial"
+              ? "Checking what already exists, then preparing the local runtime."
+              : "Preparing local dictation on this machine."}
         </p>
       </div>
 
@@ -128,8 +123,8 @@ function SetupStage({
 
       <div className="mx-auto mt-10 flex max-w-2xl justify-center">
         <div className="flex flex-col gap-4">
-          {setupSteps.map((step, index) => {
-            const currentIndex = setupSteps.indexOf(progressStepLabel as (typeof setupSteps)[number]);
+          {stepItems.map((step, index) => {
+            const currentIndex = stepItems.indexOf(progressStepLabel);
             const isActive = step === progressStepLabel;
             const isComplete = index < currentIndex;
 
@@ -147,7 +142,7 @@ function SetupStage({
                             : "bg-slate-300"
                     }`}
                   />
-                  {index < setupSteps.length - 1 ? (
+                  {index < stepItems.length - 1 ? (
                     <span
                       className={`mt-2 h-7 w-px ${
                         detectedStatus === "complete"
@@ -297,6 +292,7 @@ function TestStage({ onComplete }: { onComplete: () => void }) {
 
 export function LocalOnboardingPage({
   stage,
+  stepItems,
   progressStepLabel,
   progressValue,
   statusMessage,
@@ -311,6 +307,7 @@ export function LocalOnboardingPage({
     <Shell onBack={onBack}>
       {stage === "setup" ? (
         <SetupStage
+          stepItems={stepItems}
           progressStepLabel={progressStepLabel}
           progressValue={progressValue}
           statusMessage={statusMessage}

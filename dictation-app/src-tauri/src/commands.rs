@@ -103,6 +103,11 @@ pub fn get_local_setup_status() -> local_setup::LocalSetupStatus {
 }
 
 #[tauri::command]
+pub fn run_local_setup(app: AppHandle) -> Result<local_setup::LocalSetupStatus, String> {
+    local_setup::run_local_setup(&app).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn paste_latest_output(
     app: AppHandle,
     state: tauri::State<'_, AppState>,

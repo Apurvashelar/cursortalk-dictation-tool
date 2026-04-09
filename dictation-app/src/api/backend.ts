@@ -64,3 +64,8 @@ export type LocalSetupStatus = {
   missing_items: string[];
   detected_legacy_cleanup: boolean;
 };
+
+export type LocalSetupProgress = {
+  step: string;
+  message: string;
+};

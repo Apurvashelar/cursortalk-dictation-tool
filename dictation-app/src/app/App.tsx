@@ -5,6 +5,7 @@ import type {
   AppConfig,
   AudioInputDevice,
   BackendHealth,
+  LocalSetupProgress,
   LocalSetupStatus,
   SessionState,
   SttStatus,
@@ -22,9 +23,15 @@ import { useAppState } from "../state/appState";
 
 const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
 const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
-const localSetupSteps = [
-  "Checking storage",
-  "Preparing local folders",
+const LOCAL_SETUP_PROGRESS_EVENT = "local-setup-progress";
+const localPreflightSteps = [
+  "Checking local setup",
+  "Looking for speech model",
+  "Looking for cleanup model",
+  "Validating local files",
+] as const;
+const localInstallSteps = [
+  "Preparing folders",
   "Downloading speech model",
   "Downloading cleanup model",
   "Verifying files",
@@ -87,6 +94,8 @@ export function App() {
   });
   const [localSetupStepIndex, setLocalSetupStepIndex] = useState(0);
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
+  const [localSetupStepItems, setLocalSetupStepItems] =
+    useState<readonly string[]>(localPreflightSteps);
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -201,71 +210,151 @@ export function App() {
     }
 
     let isActive = true;
+    let removeProgressListener: (() => void) | undefined;
     setLocalSetupStepIndex(0);
     setLocalSetupStatus(null);
+    setLocalSetupStepItems(localPreflightSteps);
     const timeouts: number[] = [];
 
-    const runSetupFlow = (status: LocalSetupStatus) => {
-      setLocalSetupStatus(status);
+    const queueDemoTransition = (delayMs: number) => {
+      const timeoutId = window.setTimeout(() => {
+        if (isActive) {
+          setOnboardingStep("local_demo");
+        }
+      }, delayMs);
 
-      if (status.status === "complete") {
-        setLocalSetupStepIndex(localSetupSteps.length - 1);
-        const completeTimeoutId = window.setTimeout(() => {
-          if (isActive) {
-            setOnboardingStep("local_demo");
-          }
-        }, 1300);
+      timeouts.push(timeoutId);
+    };
 
-        timeouts.push(completeTimeoutId);
-        return;
-      }
-
-      localSetupSteps.forEach((_, index) => {
+    const moveThroughPreflight = (status: LocalSetupStatus) => {
+      localPreflightSteps.forEach((_, index) => {
         const timeoutId = window.setTimeout(() => {
           if (!isActive) {
             return;
           }
 
+          setLocalSetupStepItems(localPreflightSteps);
           setLocalSetupStepIndex(index);
-
-          if (index === localSetupSteps.length - 1) {
-            const completeTimeoutId = window.setTimeout(() => {
-              if (isActive) {
-                setOnboardingStep("local_demo");
-              }
-            }, 900);
-
-            timeouts.push(completeTimeoutId);
-          }
-        }, index * 1200);
+        }, index * 220);
 
         timeouts.push(timeoutId);
       });
+
+      const finishTimeoutId = window.setTimeout(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setLocalSetupStatus(status);
+
+        if (status.status === "complete") {
+          setLocalSetupStepItems([...localPreflightSteps, "Setup already completed"]);
+          setLocalSetupStepIndex(localPreflightSteps.length);
+          queueDemoTransition(1200);
+        }
+      }, localPreflightSteps.length * 220 + 60);
+
+      timeouts.push(finishTimeoutId);
     };
 
-    void invoke<LocalSetupStatus>("get_local_setup_status")
-      .then((status) => {
-        if (isActive) {
-          runSetupFlow(status);
+    const runSetupFlow = async () => {
+      try {
+        removeProgressListener = await listen<LocalSetupProgress>(
+          LOCAL_SETUP_PROGRESS_EVENT,
+          (event) => {
+            if (!isActive) {
+              return;
+            }
+
+            const stepIndex = localInstallSteps.indexOf(
+              event.payload.step as (typeof localInstallSteps)[number],
+            );
+
+            if (stepIndex >= 0) {
+              setLocalSetupStepItems(localInstallSteps);
+              setLocalSetupStepIndex(stepIndex);
+            }
+
+            setLocalSetupStatus((currentStatus) => ({
+              status: currentStatus?.status ?? "partial",
+              message: event.payload.message,
+              storage_path: currentStatus?.storage_path ?? "",
+              stt_model_dir: currentStatus?.stt_model_dir ?? "",
+              cleanup_model_dir: currentStatus?.cleanup_model_dir ?? "",
+              missing_items: currentStatus?.missing_items ?? [],
+              detected_legacy_cleanup: currentStatus?.detected_legacy_cleanup ?? false,
+            }));
+          },
+        );
+
+        const status = await invoke<LocalSetupStatus>("get_local_setup_status");
+
+        if (!isActive) {
+          return;
         }
-      })
-      .catch((error) => {
-        if (isActive) {
-          console.error("Failed to detect local setup", error);
-          runSetupFlow({
-            status: "missing",
-            message: "Local models were not found yet. Download is required for setup.",
-            storage_path: "",
-            stt_model_dir: "",
-            cleanup_model_dir: "",
-            missing_items: [],
-            detected_legacy_cleanup: false,
-          });
+
+        moveThroughPreflight(status);
+
+        if (status.status === "complete") {
+          return;
         }
-      });
+
+        const installStartDelay = localPreflightSteps.length * 220 + 120;
+        const installTimeoutId = window.setTimeout(async () => {
+          try {
+            const finalStatus = await invoke<LocalSetupStatus>("run_local_setup");
+
+            if (!isActive) {
+              return;
+            }
+
+            setLocalSetupStatus(finalStatus);
+            setLocalSetupStepItems(localInstallSteps);
+            setLocalSetupStepIndex(localInstallSteps.length - 1);
+            queueDemoTransition(900);
+          } catch (error) {
+            if (!isActive) {
+              return;
+            }
+
+            console.error("Failed to run local setup", error);
+            setLocalSetupStatus((currentStatus) => ({
+              status: currentStatus?.status ?? status.status,
+              message: `Local setup could not be completed. ${String(error)}`,
+              storage_path: currentStatus?.storage_path ?? status.storage_path,
+              stt_model_dir: currentStatus?.stt_model_dir ?? status.stt_model_dir,
+              cleanup_model_dir: currentStatus?.cleanup_model_dir ?? status.cleanup_model_dir,
+              missing_items: currentStatus?.missing_items ?? status.missing_items,
+              detected_legacy_cleanup:
+                currentStatus?.detected_legacy_cleanup ?? status.detected_legacy_cleanup,
+            }));
+          }
+        }, installStartDelay);
+
+        timeouts.push(installTimeoutId);
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        console.error("Failed to detect local setup", error);
+        setLocalSetupStatus({
+          status: "missing",
+          message: `Local setup check could not be completed. ${String(error)}`,
+          storage_path: "",
+          stt_model_dir: "",
+          cleanup_model_dir: "",
+          missing_items: [],
+          detected_legacy_cleanup: false,
+        });
+      }
+    };
+
+    void runSetupFlow();
 
     return () => {
       isActive = false;
+      removeProgressListener?.();
       timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
   }, [onboardingStep]);
@@ -365,8 +454,9 @@ export function App() {
     return (
       <LocalOnboardingPage
         stage={localOnboardingStage}
-        progressStepLabel={localSetupSteps[localSetupStepIndex] ?? localSetupSteps[0]}
-        progressValue={((localSetupStepIndex + 1) / localSetupSteps.length) * 100}
+        stepItems={[...localSetupStepItems]}
+        progressStepLabel={localSetupStepItems[localSetupStepIndex] ?? localSetupStepItems[0]}
+        progressValue={((localSetupStepIndex + 1) / localSetupStepItems.length) * 100}
         statusMessage={localSetupStatus?.message}
         detectedStatus={localSetupStatus?.status}
         missingItems={localSetupStatus?.missing_items}
