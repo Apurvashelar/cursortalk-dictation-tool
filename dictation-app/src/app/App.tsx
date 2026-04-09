@@ -12,7 +12,11 @@ import { defaultBackendHealth } from "../api/backend";
 import { DiagnosticsPage } from "../pages/DiagnosticsPage";
 import { HomePage, type RecentActivityItem } from "../pages/HomePage";
 import { SettingsPage } from "../pages/SettingsPage";
+import { WelcomePage } from "../pages/WelcomePage";
 import { useAppState } from "../state/appState";
+
+const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
+const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
 
 const defaultSessionState: SessionState = {
   state: "idle",
@@ -50,6 +54,22 @@ export function App() {
   const [isRecordingActionPending, setIsRecordingActionPending] = useState(false);
   const [isPastePending, setIsPastePending] = useState(false);
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
+  const [selectedMode, setSelectedMode] = useState<"local" | "organization">(() => {
+    if (typeof window === "undefined") {
+      return "organization";
+    }
+
+    return window.localStorage.getItem(SELECTED_MODE_KEY) === "local"
+      ? "local"
+      : "organization";
+  });
+  const [onboardingStep, setOnboardingStep] = useState<"welcome" | "mode" | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    return window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true" ? null : "welcome";
+  });
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -203,14 +223,37 @@ export function App() {
     }
   }
 
+  function completeOnboarding(mode: "local" | "organization") {
+    setSelectedMode(mode);
+    window.localStorage.setItem(SELECTED_MODE_KEY, mode);
+    window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+    setOnboardingStep(null);
+    setCurrentPage(mode === "local" ? "settings" : "home");
+  }
+
+  if (onboardingStep) {
+    return (
+      <WelcomePage
+        step={onboardingStep}
+        onContinue={() => setOnboardingStep("mode")}
+        onBack={() => setOnboardingStep("welcome")}
+        onChooseMode={completeOnboarding}
+      />
+    );
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
         <div className="brand-block">
-          <p className="eyebrow">Enterprise Voice Dictation</p>
+          <p className="eyebrow">
+            {selectedMode === "organization" ? "Enterprise Voice Dictation" : "Local Voice Dictation"}
+          </p>
           <h1>VoiceFlow Desktop</h1>
           <p className="muted app-subtitle">
-            A focused dictation utility for organization mode.
+            {selectedMode === "organization"
+              ? "A focused dictation utility for organization mode."
+              : "A focused dictation utility for local mode preview."}
           </p>
         </div>
         <nav className="nav">
@@ -241,6 +284,7 @@ export function App() {
       <section className="content">
         {currentPage === "home" ? (
           <HomePage
+            selectedMode={selectedMode}
             backendHealth={backendHealth}
             sessionState={sessionState}
             audioDevices={audioDevices}
@@ -254,6 +298,7 @@ export function App() {
           />
         ) : currentPage === "settings" ? (
           <SettingsPage
+            selectedMode={selectedMode}
             config={config}
             backendHealth={backendHealth}
             sessionState={sessionState}

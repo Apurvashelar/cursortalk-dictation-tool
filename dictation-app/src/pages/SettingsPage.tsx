@@ -6,6 +6,7 @@ import type {
 } from "../api/backend";
 
 type SettingsPageProps = {
+  selectedMode: "local" | "organization";
   config: AppConfig | null;
   backendHealth: BackendHealth;
   sessionState: SessionState;
@@ -13,6 +14,7 @@ type SettingsPageProps = {
 };
 
 export function SettingsPage({
+  selectedMode,
   config,
   backendHealth,
   sessionState,
@@ -36,7 +38,7 @@ export function SettingsPage({
           <div className="field-grid">
             <label className="field">
               <span>Mode</span>
-              <input value={config?.mode ?? "organization"} readOnly />
+              <input value={selectedMode} readOnly />
             </label>
             <label className="field">
               <span>Dictation shortcut</span>

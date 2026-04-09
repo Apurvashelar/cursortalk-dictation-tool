@@ -12,6 +12,7 @@ export type RecentActivityItem = {
 };
 
 type HomePageProps = {
+  selectedMode: "local" | "organization";
   backendHealth: BackendHealth;
   sessionState: SessionState;
   audioDevices: AudioInputDevice[];
@@ -76,6 +77,7 @@ function shortIssueText(sessionState: SessionState, backendHealth: BackendHealth
 }
 
 export function HomePage({
+  selectedMode,
   backendHealth,
   sessionState,
   audioDevices,
@@ -99,7 +101,9 @@ export function HomePage({
       <section className="hero-card">
         <div className="hero-header">
           <div>
-            <p className="eyebrow">Organization Mode</p>
+            <p className="eyebrow">
+              {selectedMode === "organization" ? "Organization Mode" : "Local Mode"}
+            </p>
             <h2>Ready for dictation</h2>
             <p className="hero-copy">{shortIssueText(sessionState, backendHealth)}</p>
           </div>
@@ -167,8 +171,14 @@ export function HomePage({
                 <span>{defaultDevice?.name ?? "No input device detected"}</span>
               </div>
               <div className="readiness-chip">
-                <span className="chip-label">Backend</span>
-                <span>{readinessLabel(backendHealth.status)}</span>
+                <span className="chip-label">
+                  {selectedMode === "organization" ? "Backend" : "Runtime"}
+                </span>
+                <span>
+                  {selectedMode === "organization"
+                    ? readinessLabel(backendHealth.status)
+                    : "Local setup preview"}
+                </span>
               </div>
             </div>
           </div>
@@ -212,8 +222,13 @@ export function HomePage({
           <p className="section-label">Readiness</p>
           <ul className="status-list">
             <li>
-              <span className="status-dot" data-status={backendHealth.status} />
-              Enterprise backend: {readinessLabel(backendHealth.status)}
+              <span
+                className="status-dot"
+                data-status={selectedMode === "organization" ? backendHealth.status : "ready"}
+              />
+              {selectedMode === "organization"
+                ? `Enterprise backend: ${readinessLabel(backendHealth.status)}`
+                : "Local workflow: setup path selected"}
             </li>
             <li>
               <span className="status-dot" data-status={defaultDevice ? "ready" : "error"} />
