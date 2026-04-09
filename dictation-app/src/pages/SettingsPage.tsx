@@ -62,28 +62,49 @@ export function SettingsPage({
         </section>
 
         <section className="card">
-          <h3>Enterprise connection</h3>
-          <div className="field-grid">
-            <label className="field">
-              <span>Backend status</span>
-              <input value={backendHealth.status} readOnly />
-            </label>
-            <label className="field">
-              <span>Backend URL</span>
-              <input value={config?.cleanup_url ?? "http://127.0.0.1:8080/clean"} readOnly />
-            </label>
-            <label className="field">
-              <span>Health URL</span>
-              <input
-                value={config?.health_url ?? "http://127.0.0.1:8080/health"}
-                readOnly
-              />
-            </label>
-            <label className="field">
-              <span>Tunnel target</span>
-              <input value={config?.tunnel_host ?? "AWS EC2"} readOnly />
-            </label>
-          </div>
+          <h3>{selectedMode === "organization" ? "Enterprise connection" : "Local models"}</h3>
+          {selectedMode === "organization" ? (
+            <div className="field-grid">
+              <label className="field">
+                <span>Backend status</span>
+                <input value={backendHealth.status} readOnly />
+              </label>
+              <label className="field">
+                <span>Backend URL</span>
+                <input value={config?.cleanup_url ?? "http://127.0.0.1:8080/clean"} readOnly />
+              </label>
+              <label className="field">
+                <span>Health URL</span>
+                <input
+                  value={config?.health_url ?? "http://127.0.0.1:8080/health"}
+                  readOnly
+                />
+              </label>
+              <label className="field">
+                <span>Tunnel target</span>
+                <input value={config?.tunnel_host ?? "AWS EC2"} readOnly />
+              </label>
+            </div>
+          ) : (
+            <div className="field-grid">
+              <label className="field">
+                <span>Speech model package</span>
+                <input value="Downloaded locally" readOnly />
+              </label>
+              <label className="field">
+                <span>Cleanup model package</span>
+                <input value="Downloaded locally" readOnly />
+              </label>
+              <label className="field">
+                <span>Estimated storage</span>
+                <input value="About 3.2 GB" readOnly />
+              </label>
+              <label className="field">
+                <span>STT model dir</span>
+                <input value={config?.stt_model_dir ?? "Not configured"} readOnly />
+              </label>
+            </div>
+          )}
         </section>
 
         <section className="card">

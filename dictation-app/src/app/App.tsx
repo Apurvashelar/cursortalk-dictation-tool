@@ -11,12 +11,24 @@ import type {
 import { defaultBackendHealth } from "../api/backend";
 import { DiagnosticsPage } from "../pages/DiagnosticsPage";
 import { HomePage, type RecentActivityItem } from "../pages/HomePage";
+import {
+  LocalOnboardingPage,
+  type LocalOnboardingStage,
+} from "../pages/LocalOnboardingPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WelcomePage } from "../pages/WelcomePage";
 import { useAppState } from "../state/appState";
 
 const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
 const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
+const localSetupSteps = [
+  "Checking storage",
+  "Preparing local folders",
+  "Downloading speech model",
+  "Downloading cleanup model",
+  "Verifying files",
+  "Preparing local runtime",
+] as const;
 
 const defaultSessionState: SessionState = {
   state: "idle",
@@ -63,13 +75,16 @@ export function App() {
       ? "local"
       : "organization";
   });
-  const [onboardingStep, setOnboardingStep] = useState<"welcome" | "mode" | null>(() => {
+  const [onboardingStep, setOnboardingStep] = useState<
+    "welcome" | "mode" | "local_setup" | "local_demo" | "local_test" | null
+  >(() => {
     if (typeof window === "undefined") {
       return null;
     }
 
     return window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true" ? null : "welcome";
   });
+  const [localSetupStepIndex, setLocalSetupStepIndex] = useState(0);
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -178,6 +193,36 @@ export function App() {
     });
   }, [sessionState.final_output, sessionState.used_cleanup_fallback]);
 
+  useEffect(() => {
+    if (onboardingStep !== "local_setup") {
+      return;
+    }
+
+    setLocalSetupStepIndex(0);
+
+    const timeouts: number[] = [];
+
+    localSetupSteps.forEach((_, index) => {
+      const timeoutId = window.setTimeout(() => {
+        setLocalSetupStepIndex(index);
+
+        if (index === localSetupSteps.length - 1) {
+          const completeTimeoutId = window.setTimeout(() => {
+            setOnboardingStep("local_demo");
+          }, 900);
+
+          timeouts.push(completeTimeoutId);
+        }
+      }, index * 1200);
+
+      timeouts.push(timeoutId);
+    });
+
+    return () => {
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, [onboardingStep]);
+
   async function startRecording() {
     setIsRecordingActionPending(true);
 
@@ -223,21 +268,62 @@ export function App() {
     }
   }
 
-  function completeOnboarding(mode: "local" | "organization") {
-    setSelectedMode(mode);
-    window.localStorage.setItem(SELECTED_MODE_KEY, mode);
+  function completeOrganizationOnboarding() {
+    setSelectedMode("organization");
+    window.localStorage.setItem(SELECTED_MODE_KEY, "organization");
     window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
     setOnboardingStep(null);
-    setCurrentPage(mode === "local" ? "settings" : "home");
+    setCurrentPage("home");
+  }
+
+  function beginLocalOnboarding() {
+    setSelectedMode("local");
+    window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+    setOnboardingStep("local_setup");
+  }
+
+  function finishLocalOnboarding() {
+    setSelectedMode("local");
+    window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+    window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+    setOnboardingStep(null);
+    setCurrentPage("home");
   }
 
   if (onboardingStep) {
+    if (onboardingStep === "welcome" || onboardingStep === "mode") {
+      return (
+        <WelcomePage
+          step={onboardingStep}
+          onContinue={() => setOnboardingStep("mode")}
+          onBack={() => setOnboardingStep("welcome")}
+          onChooseMode={(mode) => {
+            if (mode === "local") {
+              beginLocalOnboarding();
+            } else {
+              completeOrganizationOnboarding();
+            }
+          }}
+        />
+      );
+    }
+
+    const localOnboardingStage: LocalOnboardingStage =
+      onboardingStep === "local_setup"
+        ? "setup"
+        : onboardingStep === "local_demo"
+          ? "demo"
+          : "test";
+
     return (
-      <WelcomePage
-        step={onboardingStep}
-        onContinue={() => setOnboardingStep("mode")}
-        onBack={() => setOnboardingStep("welcome")}
-        onChooseMode={completeOnboarding}
+      <LocalOnboardingPage
+        stage={localOnboardingStage}
+        progressStepLabel={localSetupSteps[localSetupStepIndex] ?? localSetupSteps[0]}
+        progressValue={((localSetupStepIndex + 1) / localSetupSteps.length) * 100}
+        onBack={() => setOnboardingStep("mode")}
+        onSkipDemo={() => setOnboardingStep("local_test")}
+        onContinueFromDemo={() => setOnboardingStep("local_test")}
+        onComplete={finishLocalOnboarding}
       />
     );
   }

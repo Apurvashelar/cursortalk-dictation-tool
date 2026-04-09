@@ -76,6 +76,14 @@ function shortIssueText(sessionState: SessionState, backendHealth: BackendHealth
   return "Start dictation quickly, see that the app is listening, and trust the final text will land in the active app.";
 }
 
+function secondaryRuntimeLabel(selectedMode: "local" | "organization", backendHealth: BackendHealth) {
+  if (selectedMode === "local") {
+    return "Local runtime ready";
+  }
+
+  return readinessLabel(backendHealth.status);
+}
+
 export function HomePage({
   selectedMode,
   backendHealth,
@@ -113,8 +121,11 @@ export function HomePage({
               <span>{stateLabel(sessionState.state)}</span>
             </div>
             <div className="status-dotline">
-              <span className="status-dot" data-status={backendHealth.status} />
-              <span>{readinessLabel(backendHealth.status)}</span>
+              <span
+                className="status-dot"
+                data-status={selectedMode === "organization" ? backendHealth.status : "ready"}
+              />
+              <span>{secondaryRuntimeLabel(selectedMode, backendHealth)}</span>
             </div>
           </div>
         </div>

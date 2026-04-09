@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import { ArrowLeft, Building2, Mic, LaptopMinimal } from "lucide-react";
+import { ArrowLeft, Mic } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { BackgroundPaths } from "@/components/ui/background-paths";
@@ -18,7 +17,6 @@ function ModeCard({
   tag,
   attributes,
   storageFootnote,
-  icon,
   onClick,
 }: {
   title: string;
@@ -26,21 +24,16 @@ function ModeCard({
   tag: string;
   attributes: string[];
   storageFootnote?: string;
-  icon: ReactNode;
   onClick: () => void;
 }) {
   return (
     <button
-      className="group relative w-full rounded-[28px] border border-black/10 bg-white/78 p-7 text-left shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-black/20 hover:bg-white/88"
+      className="group relative grid h-full w-full grid-rows-[auto_auto_auto_1fr_auto_auto] rounded-[28px] border border-black/10 bg-white/78 p-7 text-left shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-black/25 hover:bg-white/92 hover:shadow-[0_32px_120px_rgba(15,23,42,0.14)]"
       onClick={onClick}
       type="button"
     >
-      <div className="mb-4 inline-flex rounded-full border border-emerald-900/10 bg-emerald-950/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+      <div className="mb-4 text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
         {tag}
-      </div>
-
-      <div className="mb-5 inline-flex rounded-2xl border border-black/10 bg-black/5 p-3 text-slate-900">
-        {icon}
       </div>
 
       <div className="space-y-2">
@@ -48,9 +41,9 @@ function ModeCard({
         <p className="max-w-sm text-sm leading-6 text-slate-600">{subtitle}</p>
       </div>
 
-      <ul className="mt-6 space-y-3">
+      <ul className="mt-6 space-y-2 self-start">
         {attributes.map((attribute) => (
-          <li className="flex items-start gap-3 text-sm leading-6 text-slate-700" key={attribute}>
+          <li className="flex items-start gap-3 text-[15px] leading-6 text-slate-700" key={attribute}>
             <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-950" />
             <span>{attribute}</span>
           </li>
@@ -58,12 +51,14 @@ function ModeCard({
       </ul>
 
       {storageFootnote ? (
-        <div className="mt-6 rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-3 text-sm text-slate-600">
+        <div className="mt-6 rounded-xl border border-black/8 bg-black/[0.03] px-3.5 py-2.5 text-[13px] leading-5 text-slate-600">
           {storageFootnote}
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-6" />
+      )}
 
-      <div className="mt-7 text-sm font-medium text-slate-950 transition-transform duration-300 group-hover:translate-x-1">
+      <div className="mt-7 self-end text-sm font-medium text-slate-950 transition-transform duration-300 group-hover:translate-x-1">
         Choose {title}
       </div>
     </button>
@@ -79,7 +74,10 @@ export function WelcomePage({
   if (step === "mode") {
     return (
       <BackgroundPaths>
-        <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10">
+      <div
+        className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10"
+        style={{ fontFamily: '"IBM Plex Sans", "Inter", "Helvetica Neue", sans-serif' }}
+      >
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
@@ -97,16 +95,9 @@ export function WelcomePage({
 
             <div className="rounded-[34px] border border-black/10 bg-white/78 p-8 shadow-[0_30px_120px_rgba(15,23,42,0.1)] backdrop-blur-2xl md:p-10">
               <div className="mx-auto max-w-3xl text-center">
-                <p className="text-sm font-medium uppercase tracking-[0.22em] text-slate-500">
+                <h1 className="text-sm font-medium uppercase tracking-[0.22em] text-slate-500">
                   Choose mode
-                </p>
-                <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-                  Choose how Voice Dictation should run
                 </h1>
-                <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                  Pick the setup that matches your workflow today. You can change this later in
-                  Settings.
-                </p>
               </div>
 
               <div className="mt-10 grid gap-5 md:grid-cols-2">
@@ -120,7 +111,6 @@ export function WelcomePage({
                     "Better privacy, heavier local setup",
                   ]}
                   storageFootnote="Expect roughly 3.2GB of first-launch downloads: about 1.5GB for speech models and 1.7GB for cleanup."
-                  icon={<LaptopMinimal className="h-6 w-6" />}
                   onClick={() => onChooseMode("local")}
                 />
                 <ModeCard
@@ -132,12 +122,11 @@ export function WelcomePage({
                     "Requires server URL + API key",
                     "Managed by IT/admin",
                   ]}
-                  icon={<Building2 className="h-6 w-6" />}
                   onClick={() => onChooseMode("organization")}
                 />
               </div>
 
-              <div className="mt-8 rounded-[24px] border border-black/8 bg-black/[0.035] px-5 py-4 text-sm text-slate-600">
+              <div className="mt-8 text-center text-sm text-slate-600">
                 You can change this later in Settings.
               </div>
             </div>
@@ -149,7 +138,10 @@ export function WelcomePage({
 
   return (
     <BackgroundPaths>
-      <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10">
+      <div
+        className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-6 py-10"
+        style={{ fontFamily: '"IBM Plex Sans", "Inter", "Helvetica Neue", sans-serif' }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
@@ -160,25 +152,14 @@ export function WelcomePage({
             <div className="mx-auto mb-6 inline-flex h-16 w-16 items-center justify-center rounded-[22px] border border-black/10 bg-black/5 text-slate-950">
               <Mic className="h-7 w-7" />
             </div>
-            <h1 className="text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
+            <h1 className="text-4xl font-bold tracking-[-0.04em] text-slate-950 sm:text-5xl">
               Voice Dictation
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
               Hold a hotkey, speak, release, and text is inserted where your cursor is.
             </p>
 
-            <div className="mx-auto mt-8 grid max-w-xl gap-3 text-left">
-              <div className="flex items-start gap-3 rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-3 text-sm text-slate-700">
-                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-950" />
-                <span>Works in any app</span>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-3 text-sm text-slate-700">
-                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-950" />
-                <span>Personal or Organization mode</span>
-              </div>
-            </div>
-
-            <div className="mt-10">
+            <div className="mt-14">
               <Button
                 className="rounded-2xl bg-slate-950 px-8 py-6 text-base text-white hover:bg-slate-900"
                 onClick={onContinue}
