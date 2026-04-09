@@ -430,6 +430,9 @@ export function App() {
     try {
       const nextState = await invoke<SessionState>("start_recording");
       setSessionState(nextState);
+    } catch (error) {
+      console.error("Failed to start recording", error);
+      await loadSessionState();
     } finally {
       setIsRecordingActionPending(false);
     }
@@ -441,6 +444,9 @@ export function App() {
     try {
       const nextState = await invoke<SessionState>("stop_recording");
       setSessionState(nextState);
+    } catch (error) {
+      console.error("Failed to stop recording", error);
+      await loadSessionState();
     } finally {
       setIsRecordingActionPending(false);
     }
@@ -452,6 +458,9 @@ export function App() {
     try {
       const nextState = await invoke<SessionState>("paste_latest_output");
       setSessionState(nextState);
+    } catch (error) {
+      console.error("Failed to paste latest output", error);
+      await loadSessionState();
     } finally {
       setIsPastePending(false);
     }

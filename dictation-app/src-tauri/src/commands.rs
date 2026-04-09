@@ -115,8 +115,13 @@ pub fn start_recording(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let snapshot = start_recording_internal(&app, &state)?;
-    Ok(snapshot)
+    match start_recording_internal(&app, &state) {
+        Ok(snapshot) => Ok(snapshot),
+        Err(error) => {
+            let _ = update_error_state(&app, &state, error.clone());
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
@@ -124,8 +129,13 @@ pub async fn stop_recording(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let snapshot = stop_recording_internal(&app, &state, false).await?;
-    Ok(snapshot)
+    match stop_recording_internal(&app, &state, false).await {
+        Ok(snapshot) => Ok(snapshot),
+        Err(error) => {
+            let _ = update_error_state(&app, &state, error.clone());
+            Err(error)
+        }
+    }
 }
 
 #[tauri::command]
