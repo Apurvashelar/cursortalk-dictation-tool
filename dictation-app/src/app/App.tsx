@@ -9,7 +9,8 @@ import type {
   SttStatus,
 } from "../api/backend";
 import { defaultBackendHealth } from "../api/backend";
-import { SetupPage } from "../pages/SetupPage";
+import { DiagnosticsPage } from "../pages/DiagnosticsPage";
+import { HomePage, type RecentActivityItem } from "../pages/HomePage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { useAppState } from "../state/appState";
 
@@ -48,6 +49,7 @@ export function App() {
   const [sttStatus, setSttStatus] = useState<SttStatus>(defaultSttStatus);
   const [isRecordingActionPending, setIsRecordingActionPending] = useState(false);
   const [isPastePending, setIsPastePending] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
 
   async function loadConfig() {
     const nextConfig = await invoke<AppConfig>("get_config");
@@ -132,6 +134,30 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sessionState.final_output) {
+      return;
+    }
+
+    const finalOutput = sessionState.final_output;
+
+    setRecentActivity((currentItems) => {
+      if (currentItems[0]?.text === finalOutput) {
+        return currentItems;
+      }
+
+      const nextItem = {
+        id: `${Date.now()}`,
+        text: finalOutput,
+        source: sessionState.used_cleanup_fallback ? "fallback" : "enterprise",
+        createdAtLabel: "Just now",
+      } satisfies RecentActivityItem;
+
+      const withoutDuplicate = currentItems.filter((item) => item.text !== nextItem.text);
+      return [nextItem, ...withoutDuplicate].slice(0, 3);
+    });
+  }, [sessionState.final_output, sessionState.used_cleanup_fallback]);
+
   async function startRecording() {
     setIsRecordingActionPending(true);
 
@@ -165,20 +191,35 @@ export function App() {
     }
   }
 
+  async function copyLatestOutput() {
+    if (!sessionState.final_output) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(sessionState.final_output);
+    } catch (error) {
+      console.error("Failed to copy latest output", error);
+    }
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
-        <div>
+        <div className="brand-block">
           <p className="eyebrow">Enterprise Voice Dictation</p>
-          <h1>Whisper Flow Desktop</h1>
+          <h1>VoiceFlow Desktop</h1>
+          <p className="muted app-subtitle">
+            A focused dictation utility for organization mode.
+          </p>
         </div>
         <nav className="nav">
           <button
-            className={currentPage === "setup" ? "nav-button active" : "nav-button"}
-            onClick={() => setCurrentPage("setup")}
+            className={currentPage === "home" ? "nav-button active" : "nav-button"}
+            onClick={() => setCurrentPage("home")}
             type="button"
           >
-            Setup
+            Home
           </button>
           <button
             className={currentPage === "settings" ? "nav-button active" : "nav-button"}
@@ -187,31 +228,46 @@ export function App() {
           >
             Settings
           </button>
+          <button
+            className={currentPage === "diagnostics" ? "nav-button active" : "nav-button"}
+            onClick={() => setCurrentPage("diagnostics")}
+            type="button"
+          >
+            Diagnostics
+          </button>
         </nav>
       </header>
 
       <section className="content">
-        {currentPage === "setup" ? (
-          <SetupPage
-            config={config}
+        {currentPage === "home" ? (
+          <HomePage
             backendHealth={backendHealth}
-            isCheckingHealth={isCheckingHealth}
-            refreshBackendHealth={refreshBackendHealth}
             sessionState={sessionState}
             audioDevices={audioDevices}
-            sttStatus={sttStatus}
             isRecordingActionPending={isRecordingActionPending}
             isPastePending={isPastePending}
-            startRecording={startRecording}
-            stopRecording={stopRecording}
-            pasteLatestOutput={pasteLatestOutput}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onPasteLatest={pasteLatestOutput}
+            onCopyLatest={copyLatestOutput}
+            recentActivity={recentActivity}
           />
-        ) : (
+        ) : currentPage === "settings" ? (
           <SettingsPage
             config={config}
             backendHealth={backendHealth}
             sessionState={sessionState}
             audioDevices={audioDevices}
+          />
+        ) : (
+          <DiagnosticsPage
+            config={config}
+            backendHealth={backendHealth}
+            sessionState={sessionState}
+            audioDevices={audioDevices}
+            sttStatus={sttStatus}
+            isCheckingHealth={isCheckingHealth}
+            refreshBackendHealth={refreshBackendHealth}
           />
         )}
       </section>
