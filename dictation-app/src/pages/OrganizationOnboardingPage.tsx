@@ -1,6 +1,8 @@
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
+import type { PermissionStatusReport } from "../api/backend";
+import { PermissionPrompt } from "../components/PermissionPrompt";
 import { BackgroundPaths } from "@/components/ui/background-paths";
 import { Button } from "@/components/ui/button";
 
@@ -9,10 +11,14 @@ type OrganizationOnboardingPageProps = {
   apiKey: string;
   status: "idle" | "checking" | "unknown" | "healthy" | "degraded" | "unreachable";
   statusMessage: string;
+  permissionStatus: PermissionStatusReport;
+  isRefreshingPermissions: boolean;
   onBack: () => void;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onCheckConnection: () => void;
+  onRefreshPermissions: () => void;
+  onOpenPermissionSettings: (permission: "microphone" | "accessibility") => void;
   onContinue: () => void;
 };
 
@@ -21,10 +27,14 @@ export function OrganizationOnboardingPage({
   apiKey,
   status,
   statusMessage,
+  permissionStatus,
+  isRefreshingPermissions,
   onBack,
   onBaseUrlChange,
   onApiKeyChange,
   onCheckConnection,
+  onRefreshPermissions,
+  onOpenPermissionSettings,
   onContinue,
 }: OrganizationOnboardingPageProps) {
   const canContinue = status === "healthy" || status === "degraded";
@@ -133,6 +143,13 @@ export function OrganizationOnboardingPage({
                 </div>
               </div>
             </div>
+
+            <PermissionPrompt
+              permissionStatus={permissionStatus}
+              isRefreshingPermissions={isRefreshingPermissions}
+              onRefreshPermissions={onRefreshPermissions}
+              onOpenPermissionSettings={onOpenPermissionSettings}
+            />
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <Button

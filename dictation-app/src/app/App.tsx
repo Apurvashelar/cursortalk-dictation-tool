@@ -13,6 +13,7 @@ import type {
 } from "../api/backend";
 import { defaultBackendHealth } from "../api/backend";
 import { AuthOnboardingPage } from "../pages/AuthOnboardingPage";
+import { permissionsNeedAction } from "../components/PermissionPrompt";
 import { DiagnosticsPage } from "../pages/DiagnosticsPage";
 import { HomePage, type RecentActivityItem } from "../pages/HomePage";
 import {
@@ -20,7 +21,6 @@ import {
   type LocalOnboardingStage,
 } from "../pages/LocalOnboardingPage";
 import { OrganizationOnboardingPage } from "../pages/OrganizationOnboardingPage";
-import { PermissionOnboardingPage } from "../pages/PermissionOnboardingPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { WelcomePage } from "../pages/WelcomePage";
 import { useAppState } from "../state/appState";
@@ -112,10 +112,8 @@ export function App() {
     | "mode"
     | "local_setup"
     | "local_demo"
-    | "local_permissions"
     | "local_test"
     | "organization_setup"
-    | "organization_permissions"
     | null
   >(() => {
     if (typeof window === "undefined") {
@@ -128,6 +126,7 @@ export function App() {
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
   const [localSetupStepItems, setLocalSetupStepItems] =
     useState<readonly string[]>(localPreflightSteps);
+  const [localSetupAwaitingPermissions, setLocalSetupAwaitingPermissions] = useState(false);
   const [organizationBaseUrl, setOrganizationBaseUrl] = useState(() => {
     if (typeof window === "undefined") {
       return "http://127.0.0.1:8080";
@@ -188,6 +187,7 @@ export function App() {
   async function loadPermissionStatus() {
     const nextStatus = await invoke<PermissionStatusReport>("get_permission_status_report");
     setPermissionStatus(nextStatus);
+    return nextStatus;
   }
 
   async function refreshBackendHealth() {
@@ -259,12 +259,6 @@ export function App() {
   }, [organizationBaseUrl, selectedMode]);
 
   useEffect(() => {
-    if (onboardingStep === "local_permissions" || onboardingStep === "organization_permissions") {
-      void loadPermissionStatus();
-    }
-  }, [onboardingStep]);
-
-  useEffect(() => {
     let isMounted = true;
 
     const setupListener = async () => {
@@ -319,12 +313,25 @@ export function App() {
     setLocalSetupStepIndex(0);
     setLocalSetupStatus(null);
     setLocalSetupStepItems(localPreflightSteps);
+    setLocalSetupAwaitingPermissions(false);
     const timeouts: number[] = [];
 
-    const queuePermissionsTransition = (delayMs: number) => {
+    const queuePostSetupTransition = (delayMs: number) => {
       const timeoutId = window.setTimeout(() => {
         if (isActive) {
-          setOnboardingStep("local_permissions");
+          void (async () => {
+            const nextPermissionStatus = await loadPermissionStatus();
+
+            if (!isActive) {
+              return;
+            }
+
+            if (permissionsNeedAction(nextPermissionStatus)) {
+              setLocalSetupAwaitingPermissions(true);
+            } else {
+              setOnboardingStep("local_demo");
+            }
+          })();
         }
       }, delayMs);
 
@@ -355,7 +362,7 @@ export function App() {
         if (status.status === "complete") {
           setLocalSetupStepItems([...localPreflightSteps, "Setup already completed"]);
           setLocalSetupStepIndex(localPreflightSteps.length);
-          queuePermissionsTransition(1200);
+          queuePostSetupTransition(1200);
         }
       }, localPreflightSteps.length * 220 + 60);
 
@@ -416,7 +423,7 @@ export function App() {
             setLocalSetupStatus(finalStatus);
             setLocalSetupStepItems(localInstallSteps);
             setLocalSetupStepIndex(localInstallSteps.length - 1);
-            queuePermissionsTransition(900);
+            queuePostSetupTransition(900);
           } catch (error) {
             if (!isActive) {
               return;
@@ -509,9 +516,21 @@ export function App() {
   async function refreshPermissionStatus() {
     setIsRefreshingPermissions(true);
     try {
-      await loadPermissionStatus();
+      return await loadPermissionStatus();
     } finally {
       setIsRefreshingPermissions(false);
+    }
+  }
+
+  async function refreshOnboardingPermissions() {
+    const nextPermissionStatus = await refreshPermissionStatus();
+
+    if (
+      onboardingStep === "local_setup" &&
+      localSetupAwaitingPermissions &&
+      !permissionsNeedAction(nextPermissionStatus)
+    ) {
+      setOnboardingStep("local_demo");
     }
   }
 
@@ -642,37 +661,13 @@ export function App() {
             setOrganizationSetupMessage("Enter your server URL, then verify the connection.");
           }}
           onCheckConnection={checkOrganizationConnection}
-          onContinue={() => setOnboardingStep("organization_permissions")}
+          onContinue={completeOrganizationOnboarding}
+          permissionStatus={permissionStatus}
+          isRefreshingPermissions={isRefreshingPermissions}
+          onRefreshPermissions={refreshPermissionStatus}
+          onOpenPermissionSettings={openPermissionSettings}
           status={organizationSetupStatus}
           statusMessage={organizationSetupMessage}
-        />
-      );
-    }
-
-    if (onboardingStep === "organization_permissions") {
-      return (
-        <PermissionOnboardingPage
-          mode="organization"
-          permissionStatus={permissionStatus}
-          isRefreshingPermissions={isRefreshingPermissions}
-          onBack={() => setOnboardingStep("organization_setup")}
-          onContinue={completeOrganizationOnboarding}
-          onRefreshPermissions={refreshPermissionStatus}
-          onOpenPermissionSettings={openPermissionSettings}
-        />
-      );
-    }
-
-    if (onboardingStep === "local_permissions") {
-      return (
-        <PermissionOnboardingPage
-          mode="local"
-          permissionStatus={permissionStatus}
-          isRefreshingPermissions={isRefreshingPermissions}
-          onBack={() => setOnboardingStep("mode")}
-          onContinue={() => setOnboardingStep("local_demo")}
-          onRefreshPermissions={refreshPermissionStatus}
-          onOpenPermissionSettings={openPermissionSettings}
         />
       );
     }
@@ -693,6 +688,11 @@ export function App() {
         statusMessage={localSetupStatus?.message}
         detectedStatus={localSetupStatus?.status}
         missingItems={localSetupStatus?.missing_items}
+        showPermissionPrompt={localSetupAwaitingPermissions && permissionsNeedAction(permissionStatus)}
+        permissionStatus={permissionStatus}
+        isRefreshingPermissions={isRefreshingPermissions}
+        onRefreshPermissions={refreshOnboardingPermissions}
+        onOpenPermissionSettings={openPermissionSettings}
         onBack={() => setOnboardingStep("mode")}
         onSkipDemo={() => setOnboardingStep("local_test")}
         onContinueFromDemo={() => setOnboardingStep("local_test")}

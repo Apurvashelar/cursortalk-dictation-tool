@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 
 import { BackgroundPaths } from "@/components/ui/background-paths";
 import { Button } from "@/components/ui/button";
+import type { PermissionStatusReport } from "../api/backend";
+import { PermissionPrompt } from "../components/PermissionPrompt";
 
 export type LocalOnboardingStage = "setup" | "demo" | "test";
 
@@ -15,6 +17,11 @@ type LocalOnboardingPageProps = {
   statusMessage?: string;
   detectedStatus?: "complete" | "partial" | "missing";
   missingItems?: string[];
+  showPermissionPrompt?: boolean;
+  permissionStatus: PermissionStatusReport;
+  isRefreshingPermissions: boolean;
+  onRefreshPermissions: () => void;
+  onOpenPermissionSettings: (permission: "microphone" | "accessibility") => void;
   onBack: () => void;
   onSkipDemo: () => void;
   onContinueFromDemo: () => void;
@@ -65,6 +72,11 @@ function SetupStage({
   statusMessage,
   detectedStatus,
   missingItems,
+  showPermissionPrompt,
+  permissionStatus,
+  isRefreshingPermissions,
+  onRefreshPermissions,
+  onOpenPermissionSettings,
 }: {
   stepItems: string[];
   progressStepLabel: string;
@@ -72,6 +84,11 @@ function SetupStage({
   statusMessage?: string;
   detectedStatus?: "complete" | "partial" | "missing";
   missingItems?: string[];
+  showPermissionPrompt?: boolean;
+  permissionStatus: PermissionStatusReport;
+  isRefreshingPermissions: boolean;
+  onRefreshPermissions: () => void;
+  onOpenPermissionSettings: (permission: "microphone" | "accessibility") => void;
 }) {
   const isPreflightStep = [
     "Checking local setup",
@@ -187,6 +204,15 @@ function SetupStage({
           })}
         </div>
       </div>
+
+      {showPermissionPrompt ? (
+        <PermissionPrompt
+          permissionStatus={permissionStatus}
+          isRefreshingPermissions={isRefreshingPermissions}
+          onRefreshPermissions={onRefreshPermissions}
+          onOpenPermissionSettings={onOpenPermissionSettings}
+        />
+      ) : null}
     </div>
   );
 }
@@ -315,6 +341,11 @@ export function LocalOnboardingPage({
   statusMessage,
   detectedStatus,
   missingItems,
+  showPermissionPrompt,
+  permissionStatus,
+  isRefreshingPermissions,
+  onRefreshPermissions,
+  onOpenPermissionSettings,
   onBack,
   onSkipDemo,
   onContinueFromDemo,
@@ -330,6 +361,11 @@ export function LocalOnboardingPage({
           statusMessage={statusMessage}
           detectedStatus={detectedStatus}
           missingItems={missingItems}
+          showPermissionPrompt={showPermissionPrompt}
+          permissionStatus={permissionStatus}
+          isRefreshingPermissions={isRefreshingPermissions}
+          onRefreshPermissions={onRefreshPermissions}
+          onOpenPermissionSettings={onOpenPermissionSettings}
         />
       ) : stage === "demo" ? (
         <DemoStage onContinueFromDemo={onContinueFromDemo} onSkipDemo={onSkipDemo} />
