@@ -277,9 +277,15 @@ function TestStage({
                   : "Waiting for test"}
           </span>
         </div>
-        <div className="mt-4 min-h-[150px] rounded-[22px] border border-emerald-950/10 bg-white/70 p-5 text-base leading-7 text-slate-900">
-          {finalOutput ??
-            `Hold ${sessionState.hotkey} and say: “The quarterly report shows strong growth.” Release to finish.`}
+        <div className="mt-4 min-h-[150px] rounded-[22px] border border-emerald-950/10 bg-white/70 p-5 leading-7">
+          {finalOutput ? (
+            <p className="m-0 text-base text-slate-900">{finalOutput}</p>
+          ) : (
+            <p className="m-0 text-sm font-normal text-slate-400">
+              Hold {sessionState.hotkey} and say: “The quarterly report shows strong growth.”
+              Release to finish.
+            </p>
+          )}
         </div>
       </div>
 
@@ -293,7 +299,7 @@ function TestStage({
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
         <button
-          className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-black/20 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:border-slate-950 hover:bg-slate-950 hover:text-white active:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:hover:text-slate-700"
           disabled={(isBusy && !isRecording) || isRecordingActionPending}
           onClick={runTestAction}
           type="button"
@@ -301,17 +307,20 @@ function TestStage({
           {testActionLabel}
         </button>
         <button
-          className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-black/20 hover:text-slate-950"
+          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 ${
+            isDemoVisible
+              ? "border-slate-950 bg-slate-950 text-white"
+              : "border-black/10 text-slate-700 hover:border-slate-950 hover:bg-slate-950 hover:text-white"
+          }`}
           onClick={() => setIsDemoVisible((current) => !current)}
           type="button"
         >
           {isDemoVisible ? "Hide demo" : "Quick demo"}
         </button>
         <Button
-          className="rounded-2xl bg-slate-950 px-6 py-6 text-base text-white hover:bg-slate-900"
+          className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm text-white hover:bg-slate-900 active:bg-slate-800"
           disabled={!finalOutput}
           onClick={onComplete}
-          size="lg"
         >
           Looks great
         </Button>
