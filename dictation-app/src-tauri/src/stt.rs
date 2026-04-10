@@ -20,12 +20,21 @@ pub struct TranscriptionResult {
     pub sample_rate: u32,
 }
 
+pub struct AudioActivity {
+    pub has_speech: bool,
+}
+
 struct CachedRecognizer {
     model_dir: String,
     recognizer: TransducerRecognizer,
 }
 
 static RECOGNIZER: OnceLock<Mutex<Option<CachedRecognizer>>> = OnceLock::new();
+const MIN_SPEECH_DURATION_MS: u64 = 350;
+const MIN_SPEECH_RMS: f32 = 0.002;
+const MIN_SPEECH_PEAK: f32 = 0.018;
+const ACTIVE_SAMPLE_THRESHOLD: f32 = 0.01;
+const MIN_ACTIVE_SAMPLE_RATIO: f32 = 0.002;
 
 pub fn current_status() -> SttStatus {
     SttStatus {
@@ -50,6 +59,38 @@ pub fn transcribe_wav(audio_path: &str, model_dir: &str) -> Result<Transcription
         latency_ms: started_at.elapsed().as_millis() as u64,
         sample_rate,
     })
+}
+
+pub fn detect_audio_activity(audio_path: &str) -> Result<AudioActivity> {
+    let (sample_rate, samples) = read_wav_samples(audio_path)?;
+
+    if samples.is_empty() || sample_rate == 0 {
+        return Ok(AudioActivity { has_speech: false });
+    }
+
+    let duration_ms = ((samples.len() as f64 / sample_rate as f64) * 1000.0).round() as u64;
+    let mut sum_squares = 0.0_f32;
+    let mut peak = 0.0_f32;
+    let mut active_samples = 0usize;
+
+    for sample in &samples {
+        let absolute = sample.abs();
+        sum_squares += absolute * absolute;
+        peak = peak.max(absolute);
+
+        if absolute >= ACTIVE_SAMPLE_THRESHOLD {
+            active_samples += 1;
+        }
+    }
+
+    let rms = (sum_squares / samples.len() as f32).sqrt();
+    let active_ratio = active_samples as f32 / samples.len() as f32;
+    let has_speech = duration_ms >= MIN_SPEECH_DURATION_MS
+        && rms >= MIN_SPEECH_RMS
+        && peak >= MIN_SPEECH_PEAK
+        && active_ratio >= MIN_ACTIVE_SAMPLE_RATIO;
+
+    Ok(AudioActivity { has_speech })
 }
 
 fn with_recognizer<T>(
@@ -177,7 +218,8 @@ mod tests {
         let model_dir = std::env::var("VOICEFLOW_STT_TEST_MODEL_DIR")
             .expect("VOICEFLOW_STT_TEST_MODEL_DIR must point to the Parakeet model directory");
 
-        let result = transcribe_wav(&audio_path, &model_dir).expect("native transcription should work");
+        let result =
+            transcribe_wav(&audio_path, &model_dir).expect("native transcription should work");
         assert!(!result.transcript.trim().is_empty());
     }
 }

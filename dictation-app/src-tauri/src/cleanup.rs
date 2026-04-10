@@ -1,6 +1,5 @@
 use std::{
-    env,
-    fs,
+    env, fs,
     net::TcpListener,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -347,7 +346,11 @@ fn candidate_llama_server_paths() -> Vec<PathBuf> {
         }
     }
 
-    candidates.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin").join("llama-server"));
+    candidates.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("bin")
+            .join("llama-server"),
+    );
     candidates.push(PathBuf::from(DEV_LLAMA_SERVER_PATH));
 
     candidates
@@ -420,7 +423,11 @@ fn find_gguf_file(dir: &Path) -> Option<PathBuf> {
                 .map(|extension| extension.eq_ignore_ascii_case("gguf"))
                 .unwrap_or(false);
 
-            if is_gguf { Some(path) } else { None }
+            if is_gguf {
+                Some(path)
+            } else {
+                None
+            }
         })
         .collect::<Vec<_>>();
 

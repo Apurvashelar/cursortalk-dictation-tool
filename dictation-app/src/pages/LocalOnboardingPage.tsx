@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { BackgroundPaths } from "@/components/ui/background-paths";
 import { Button } from "@/components/ui/button";
@@ -233,24 +233,54 @@ function TestStage({
   onComplete: () => void;
 }) {
   const [isDemoVisible, setIsDemoVisible] = useState(false);
+  const [pendingTestAction, setPendingTestAction] = useState<"starting" | "stopping" | null>(null);
   const isRecording = sessionState.state === "recording";
   const isBusy =
     sessionState.state === "transcribing" ||
     sessionState.state === "cleaning" ||
     sessionState.state === "pasting";
   const finalOutput = sessionState.final_output;
+  const isStartingRecording = pendingTestAction === "starting" && isRecordingActionPending;
+  const isStoppingRecording = pendingTestAction === "stopping" && isRecordingActionPending;
+  const showRecordingControl = isRecording || isStartingRecording || isStoppingRecording;
+  const noSpeechMessage =
+    sessionState.state === "idle" &&
+    !finalOutput &&
+    sessionState.message.toLowerCase().includes("no speech detected")
+      ? sessionState.message
+      : null;
   const processedMs =
     finalOutput && sessionState.stt_latency_ms !== null
       ? (sessionState.stt_latency_ms ?? 0) + (sessionState.cleanup_latency_ms ?? 0)
       : null;
-  const testActionLabel = isRecording ? "Stop recording" : finalOutput ? "Try again" : "Start test";
+  const testActionLabel = isStartingRecording
+    ? "Starting..."
+    : isStoppingRecording
+      ? "Stopping..."
+    : isRecording
+      ? "Stop recording"
+      : finalOutput || noSpeechMessage
+        ? "Try again"
+        : "Start test";
+
+  useEffect(() => {
+    if (!isRecordingActionPending) {
+      setPendingTestAction(null);
+    }
+  }, [isRecordingActionPending]);
 
   function runTestAction() {
+    if (isRecordingActionPending || isBusy) {
+      return;
+    }
+
     if (isRecording) {
+      setPendingTestAction("stopping");
       onStopRecording();
       return;
     }
 
+    setPendingTestAction("starting");
     onStartRecording();
   }
 
@@ -268,12 +298,14 @@ function TestStage({
             Final output
           </p>
           <span className="text-sm text-emerald-900/70">
-            {isRecording
+            {showRecordingControl
               ? "Listening..."
               : isBusy
                 ? "Processing..."
                 : finalOutput
                   ? "Ready"
+                  : noSpeechMessage
+                    ? "No speech detected"
                   : "Waiting for test"}
           </span>
         </div>
@@ -292,6 +324,8 @@ function TestStage({
       <div className="mt-5 text-center text-sm text-slate-600">
         {sessionState.state === "error"
           ? sessionState.message
+          : noSpeechMessage
+            ? noSpeechMessage
           : processedMs !== null
             ? `Processed in ${processedMs}ms`
             : "Use the shortcut or Start test button below."}
@@ -300,11 +334,11 @@ function TestStage({
       <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
         <button
           className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50 ${
-            isRecording
+            showRecordingControl
               ? "border-slate-950 bg-slate-950 text-white"
               : "border-black/10 text-slate-700 hover:border-slate-950 hover:bg-slate-950 hover:text-white disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:hover:text-slate-700"
           }`}
-          disabled={isBusy && !isRecording}
+          disabled={isRecordingActionPending || (isBusy && !isRecording)}
           onClick={runTestAction}
           type="button"
         >

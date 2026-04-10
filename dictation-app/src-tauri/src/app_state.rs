@@ -114,9 +114,9 @@ impl SessionRuntime {
         let (state, message) = match self.status {
             SessionStatus::Idle => (
                 "idle".to_string(),
-                self.last_error
-                    .clone()
-                    .unwrap_or_else(|| "Ready. Press the hotkey once to start recording.".to_string()),
+                self.last_error.clone().unwrap_or_else(|| {
+                    "Ready. Press the hotkey once to start recording.".to_string()
+                }),
             ),
             SessionStatus::Recording => (
                 "recording".to_string(),
@@ -150,14 +150,20 @@ impl SessionRuntime {
             .as_ref()
             .map(|result| result.cleaned_text.clone())
             .filter(|text| !text.trim().is_empty())
-            .or_else(|| transcription.as_ref().map(|result| result.transcript.clone()));
+            .or_else(|| {
+                transcription
+                    .as_ref()
+                    .map(|result| result.transcript.clone())
+            });
 
         SessionSnapshot {
             state,
             message,
             hotkey: config.hotkey,
             input_device: self.input_device.clone(),
-            last_recording_path: last_recording.as_ref().map(|recording| recording.path.clone()),
+            last_recording_path: last_recording
+                .as_ref()
+                .map(|recording| recording.path.clone()),
             last_recording_duration_ms: last_recording
                 .as_ref()
                 .map(|recording| recording.duration_ms),
@@ -165,7 +171,9 @@ impl SessionRuntime {
                 .as_ref()
                 .map(|recording| recording.sample_rate),
             last_recording_channels: last_recording.as_ref().map(|recording| recording.channels),
-            raw_transcript: transcription.as_ref().map(|result| result.transcript.clone()),
+            raw_transcript: transcription
+                .as_ref()
+                .map(|result| result.transcript.clone()),
             cleaned_text: cleanup.as_ref().map(|result| result.cleaned_text.clone()),
             stt_latency_ms: transcription.as_ref().map(|result| result.latency_ms),
             cleanup_latency_ms: cleanup.as_ref().map(|result| result.latency_ms),

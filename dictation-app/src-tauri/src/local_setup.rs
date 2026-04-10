@@ -281,7 +281,8 @@ fn prepare_storage_directories(storage_path: &Path) -> Result<()> {
         .context("failed to create local cleanup model directory")?;
     fs::create_dir_all(storage_path.join("downloads"))
         .context("failed to create local downloads directory")?;
-    fs::create_dir_all(storage_path.join("logs")).context("failed to create local logs directory")?;
+    fs::create_dir_all(storage_path.join("logs"))
+        .context("failed to create local logs directory")?;
     Ok(())
 }
 
@@ -340,7 +341,10 @@ fn link_required_stt_files(source_dir: &Path, target_dir: &Path) -> Result<()> {
         let target = target_dir.join(file_name);
 
         if !source.exists() {
-            return Err(anyhow!("speech model file is missing: {}", source.display()));
+            return Err(anyhow!(
+                "speech model file is missing: {}",
+                source.display()
+            ));
         }
 
         ensure_linked_file(&source, &target)?;
@@ -355,7 +359,10 @@ fn copy_required_stt_files(source_dir: &Path, target_dir: &Path) -> Result<()> {
         let target = target_dir.join(file_name);
 
         if !source.exists() {
-            return Err(anyhow!("speech model file is missing: {}", source.display()));
+            return Err(anyhow!(
+                "speech model file is missing: {}",
+                source.display()
+            ));
         }
 
         move_or_copy_file(&source, &target)?;
@@ -515,8 +522,8 @@ fn write_local_setup_metadata(
         detected_legacy_cleanup,
     };
     let metadata_path = storage_path.join("local-setup.json");
-    let metadata_json =
-        serde_json::to_string_pretty(&metadata).context("failed to serialize local setup metadata")?;
+    let metadata_json = serde_json::to_string_pretty(&metadata)
+        .context("failed to serialize local setup metadata")?;
     fs::write(&metadata_path, metadata_json)
         .with_context(|| format!("failed to write {}", metadata_path.display()))?;
     Ok(())
@@ -551,7 +558,11 @@ fn find_gguf_file(dir: &Path) -> Option<PathBuf> {
                 .map(|extension| extension.eq_ignore_ascii_case("gguf"))
                 .unwrap_or(false);
 
-            if is_gguf { Some(path) } else { None }
+            if is_gguf {
+                Some(path)
+            } else {
+                None
+            }
         })
         .collect::<Vec<_>>();
 
@@ -559,10 +570,10 @@ fn find_gguf_file(dir: &Path) -> Option<PathBuf> {
     gguf_files
         .iter()
         .find(|path| {
-        path.file_name()
-            .and_then(|file_name| file_name.to_str())
-            .map(|file_name| file_name == CLEANUP_MODEL_FILE_NAME)
-            .unwrap_or(false)
+            path.file_name()
+                .and_then(|file_name| file_name.to_str())
+                .map(|file_name| file_name == CLEANUP_MODEL_FILE_NAME)
+                .unwrap_or(false)
         })
         .cloned()
         .or_else(|| gguf_files.into_iter().next())

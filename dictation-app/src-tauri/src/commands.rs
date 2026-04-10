@@ -303,11 +303,19 @@ async fn stop_recording_internal(
         RuntimeMode::Organization => config.stt_model_dir.clone(),
     };
 
-    let transcription = run_blocking_with_timeout(
-        "Native transcription",
-        Duration::from_secs(20),
-        move || stt::transcribe_wav(&recorded_path, &stt_model_dir).map_err(|error| error.to_string()),
-    )?;
+    let activity = stt::detect_audio_activity(&recorded_path).map_err(|error| error.to_string())?;
+    if !activity.has_speech {
+        return update_no_speech_state(app, state);
+    }
+
+    let transcription =
+        run_blocking_with_timeout("Native transcription", Duration::from_secs(20), move || {
+            stt::transcribe_wav(&recorded_path, &stt_model_dir).map_err(|error| error.to_string())
+        })?;
+
+    if transcription.transcript.trim().is_empty() {
+        return update_no_speech_state(app, state);
+    }
 
     let cleaning_snapshot = {
         let mut session = state
@@ -322,10 +330,7 @@ async fn stop_recording_internal(
         snapshot
     };
 
-    let raw_transcript = cleaning_snapshot
-        .raw_transcript
-        .clone()
-        .unwrap_or_default();
+    let raw_transcript = cleaning_snapshot.raw_transcript.clone().unwrap_or_default();
 
     let cleanup_result = match runtime_mode {
         RuntimeMode::Local => {
@@ -334,25 +339,21 @@ async fn stop_recording_internal(
             let cleanup_model_dir = local_status.cleanup_model_dir.clone();
             let cleanup_raw_transcript = raw_transcript.clone();
 
-            match run_blocking_with_timeout(
-                "Local cleanup",
-                Duration::from_secs(45),
-                move || {
-                    let state = app_handle.state::<AppState>();
-                    let mut local_server = state
-                        .local_cleanup_server
-                        .lock()
-                        .map_err(|_| "failed to lock local cleanup server state".to_string())?;
+            match run_blocking_with_timeout("Local cleanup", Duration::from_secs(45), move || {
+                let state = app_handle.state::<AppState>();
+                let mut local_server = state
+                    .local_cleanup_server
+                    .lock()
+                    .map_err(|_| "failed to lock local cleanup server state".to_string())?;
 
-                    cleanup::clean_text_local(
-                        &app_handle,
-                        &mut local_server,
-                        &cleanup_model_dir,
-                        &cleanup_raw_transcript,
-                    )
-                    .map_err(|error| error.to_string())
-                },
-            ) {
+                cleanup::clean_text_local(
+                    &app_handle,
+                    &mut local_server,
+                    &cleanup_model_dir,
+                    &cleanup_raw_transcript,
+                )
+                .map_err(|error| error.to_string())
+            }) {
                 Ok(result) => result,
                 Err(error) => cleanup::fallback_from_raw(&raw_transcript, &error.to_string()),
             }
@@ -389,6 +390,29 @@ async fn stop_recording_internal(
     } else {
         Ok(final_snapshot)
     }
+}
+
+fn update_no_speech_state(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+) -> Result<SessionSnapshot, String> {
+    let snapshot = {
+        let mut session = state
+            .session
+            .lock()
+            .map_err(|_| "failed to lock session state".to_string())?;
+
+        session.status = SessionStatus::Idle;
+        session.active_recording = None;
+        session.transcription = None;
+        session.cleanup = None;
+        session.paste = None;
+        session.last_error = Some("No speech detected. Try again when you're ready.".to_string());
+        session.snapshot()
+    };
+
+    emit_session_state(app, &snapshot);
+    Ok(snapshot)
 }
 
 fn update_error_state(

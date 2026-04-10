@@ -70,9 +70,14 @@ pub fn list_input_devices() -> Result<Vec<AudioInputDevice>> {
         .input_devices()
         .context("failed to enumerate input devices")?
     {
-        let name = device.name().unwrap_or_else(|_| "Unknown Input".to_string());
+        let name = device
+            .name()
+            .unwrap_or_else(|_| "Unknown Input".to_string());
         devices.push(AudioInputDevice {
-            is_default: default_name.as_ref().map(|value| value == &name).unwrap_or(false),
+            is_default: default_name
+                .as_ref()
+                .map(|value| value == &name)
+                .unwrap_or(false),
             name,
         });
     }
@@ -85,7 +90,9 @@ fn start_recording() -> Result<RecorderHandle> {
     let device = host
         .default_input_device()
         .ok_or_else(|| anyhow!("no microphone input device available"))?;
-    let device_name = device.name().unwrap_or_else(|_| "Unknown Input".to_string());
+    let device_name = device
+        .name()
+        .unwrap_or_else(|_| "Unknown Input".to_string());
     let supported_config = preferred_input_config(&device)?;
     let sample_format = supported_config.sample_format();
     let config = supported_config.config();
@@ -121,9 +128,15 @@ fn start_recording() -> Result<RecorderHandle> {
     };
 
     let stream = match sample_format {
-        SampleFormat::F32 => build_stream::<f32>(&device, &config, writer_for_stream, error_callback)?,
-        SampleFormat::I16 => build_stream::<i16>(&device, &config, writer_for_stream, error_callback)?,
-        SampleFormat::U16 => build_stream::<u16>(&device, &config, writer_for_stream, error_callback)?,
+        SampleFormat::F32 => {
+            build_stream::<f32>(&device, &config, writer_for_stream, error_callback)?
+        }
+        SampleFormat::I16 => {
+            build_stream::<i16>(&device, &config, writer_for_stream, error_callback)?
+        }
+        SampleFormat::U16 => {
+            build_stream::<u16>(&device, &config, writer_for_stream, error_callback)?
+        }
         other => {
             return Err(anyhow!("unsupported input sample format: {other:?}"));
         }

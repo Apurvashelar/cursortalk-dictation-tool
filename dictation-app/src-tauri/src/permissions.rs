@@ -1,8 +1,4 @@
-use std::{
-    process::Command,
-    thread,
-    time::Duration,
-};
+use std::{process::Command, thread, time::Duration};
 
 use anyhow::{anyhow, Context, Result};
 use cpal::{
@@ -33,7 +29,9 @@ pub fn get_permission_status_report() -> PermissionStatusReport {
 
 pub fn open_permission_settings(permission: &str) -> Result<()> {
     let target = match permission {
-        "microphone" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        "microphone" => {
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        }
         "accessibility" => {
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         }
@@ -176,7 +174,8 @@ where
     T: cpal::SizedSample,
     i16: cpal::FromSample<T>,
 {
-    let stream = device.build_input_stream(config, move |_data: &[T], _| {}, error_callback, None)?;
+    let stream =
+        device.build_input_stream(config, move |_data: &[T], _| {}, error_callback, None)?;
     Ok(stream)
 }
 

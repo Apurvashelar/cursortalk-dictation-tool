@@ -17,11 +17,9 @@ fn main() {
     let shortcut_plugin = GlobalShortcutBuilder::new()
         .with_shortcut(shortcut.as_str())
         .expect("failed to configure global shortcut")
-        .with_handler(|app, _shortcut, event| {
-            match event.state {
-                ShortcutState::Pressed => commands::handle_hotkey_pressed(app),
-                ShortcutState::Released => commands::handle_hotkey_released(app),
-            }
+        .with_handler(|app, _shortcut, event| match event.state {
+            ShortcutState::Pressed => commands::handle_hotkey_pressed(app),
+            ShortcutState::Released => commands::handle_hotkey_released(app),
         })
         .build();
 
