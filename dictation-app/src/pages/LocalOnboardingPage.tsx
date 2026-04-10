@@ -234,16 +234,18 @@ function TestStage({
 }) {
   const [isDemoVisible, setIsDemoVisible] = useState(false);
   const [pendingTestAction, setPendingTestAction] = useState<"starting" | "stopping" | null>(null);
+  const [hasStartedTest, setHasStartedTest] = useState(false);
   const isRecording = sessionState.state === "recording";
   const isBusy =
     sessionState.state === "transcribing" ||
     sessionState.state === "cleaning" ||
     sessionState.state === "pasting";
-  const finalOutput = sessionState.final_output;
   const isStartingRecording = pendingTestAction === "starting" && isRecordingActionPending;
   const isStoppingRecording = pendingTestAction === "stopping" && isRecordingActionPending;
   const showRecordingControl = isRecording || isStartingRecording || isStoppingRecording;
+  const finalOutput = hasStartedTest ? sessionState.final_output : null;
   const noSpeechMessage =
+    hasStartedTest &&
     sessionState.state === "idle" &&
     !finalOutput &&
     sessionState.message.toLowerCase().includes("no speech detected")
@@ -253,14 +255,16 @@ function TestStage({
     finalOutput && sessionState.stt_latency_ms !== null
       ? (sessionState.stt_latency_ms ?? 0) + (sessionState.cleanup_latency_ms ?? 0)
       : null;
-  const startActionLabel = isStartingRecording
-    ? "Starting..."
-    : finalOutput || noSpeechMessage
-      ? "Try again"
-      : "Start test";
-  const stopActionLabel = isStoppingRecording ? "Stopping..." : "Stop recording";
+  const startActionLabel = finalOutput || noSpeechMessage ? "Try again" : "Start test";
+  const stopActionLabel = "Stop recording";
   const shouldShowStartAction = !isRecording && !isStoppingRecording && !isBusy;
   const shouldShowStopAction = isRecording || isStoppingRecording;
+
+  useEffect(() => {
+    if (sessionState.state !== "idle") {
+      setHasStartedTest(true);
+    }
+  }, [sessionState.state]);
 
   useEffect(() => {
     if (!isRecordingActionPending) {
@@ -273,6 +277,7 @@ function TestStage({
       return;
     }
 
+    setHasStartedTest(true);
     setPendingTestAction("starting");
     onStartRecording();
   }
