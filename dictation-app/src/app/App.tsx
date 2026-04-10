@@ -12,6 +12,7 @@ import type {
   SttStatus,
 } from "../api/backend";
 import { defaultBackendHealth } from "../api/backend";
+import { AuthOnboardingPage } from "../pages/AuthOnboardingPage";
 import { DiagnosticsPage } from "../pages/DiagnosticsPage";
 import { HomePage, type RecentActivityItem } from "../pages/HomePage";
 import {
@@ -28,6 +29,7 @@ const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
 const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
 const ORGANIZATION_BASE_URL_KEY = "voiceflow-enterprise-app.organization-base-url";
 const ORGANIZATION_API_KEY_KEY = "voiceflow-enterprise-app.organization-api-key";
+const AUTH_SKIPPED_KEY = "voiceflow-enterprise-app.auth-skipped";
 const LOCAL_SETUP_PROGRESS_EVENT = "local-setup-progress";
 const localPreflightSteps = [
   "Checking local setup",
@@ -107,6 +109,7 @@ export function App() {
   });
   const [onboardingStep, setOnboardingStep] = useState<
     | "welcome"
+    | "auth"
     | "mode"
     | "local_setup"
     | "local_demo"
@@ -121,6 +124,13 @@ export function App() {
     }
 
     return window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true" ? null : "welcome";
+  });
+  const [authSkipped, setAuthSkipped] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem(AUTH_SKIPPED_KEY) === "true";
   });
   const [localSetupStepIndex, setLocalSetupStepIndex] = useState(0);
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
@@ -549,6 +559,14 @@ export function App() {
     setOnboardingStep("local_setup");
   }
 
+  function skipAuthentication() {
+    setAuthSkipped(true);
+    window.localStorage.setItem(AUTH_SKIPPED_KEY, "true");
+    window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+    setSelectedMode("local");
+    setOnboardingStep("mode");
+  }
+
   function finishLocalOnboarding() {
     setSelectedMode("local");
     window.localStorage.setItem(SELECTED_MODE_KEY, "local");
@@ -600,16 +618,29 @@ export function App() {
       return (
         <WelcomePage
           step={onboardingStep}
-          onContinue={() => setOnboardingStep("mode")}
-          onBack={() => setOnboardingStep("welcome")}
+          organizationLocked={authSkipped}
+          onContinue={() => setOnboardingStep("auth")}
+          onBack={() => (onboardingStep === "mode" ? setOnboardingStep("auth") : setOnboardingStep("welcome"))}
           onChooseMode={(mode) => {
             if (mode === "local") {
               beginLocalOnboarding();
             } else {
+              if (authSkipped) {
+                return;
+              }
               setSelectedMode("organization");
               setOnboardingStep("organization_setup");
             }
           }}
+        />
+      );
+    }
+
+    if (onboardingStep === "auth") {
+      return (
+        <AuthOnboardingPage
+          onBack={() => setOnboardingStep("welcome")}
+          onSkip={skipAuthentication}
         />
       );
     }
