@@ -100,10 +100,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
               <h1 className="text-base font-medium uppercase tracking-[0.22em] text-slate-500">
                 Account
               </h1>
-              <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-slate-600">
-                Sign in to enable organization detection, settings sync, and future model update
-                entitlements.
-              </p>
             </div>
 
             <div className="mt-8 grid grid-cols-2 rounded-2xl border border-black/10 bg-black/[0.035] p-1">
