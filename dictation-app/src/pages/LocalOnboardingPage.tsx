@@ -233,6 +233,7 @@ function TestStage({
   onComplete: () => void;
 }) {
   const [isDemoVisible, setIsDemoVisible] = useState(false);
+  const [isCompletionOpen, setIsCompletionOpen] = useState(false);
   const [pendingTestAction, setPendingTestAction] = useState<"starting" | "stopping" | null>(null);
   const [hasStartedTest, setHasStartedTest] = useState(false);
   const isRecording = sessionState.state === "recording";
@@ -376,9 +377,9 @@ function TestStage({
         </button>
         <Button
           className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm text-white hover:bg-slate-900 active:bg-slate-800"
-          onClick={onComplete}
+          onClick={() => setIsCompletionOpen(true)}
         >
-          Looks great
+          Looks perfect
         </Button>
       </div>
 
@@ -393,6 +394,43 @@ function TestStage({
             playsInline
             src={DEMO_VIDEO_URL}
           />
+        </div>
+      ) : null}
+
+      {isCompletionOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/18 px-6 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[28px] border border-black/10 bg-white/92 p-6 text-center shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+              Setup complete
+            </p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-slate-950">
+              You are all set
+            </h2>
+            <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-2xl border border-black/10 bg-slate-950/[0.035] px-4 py-3">
+              <span className="text-sm font-semibold text-slate-950">{sessionState.hotkey}</span>
+              <span className="text-sm text-slate-500">anytime to dictate</span>
+            </div>
+            <p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-slate-600">
+              Dictation is ready. You can start from the home screen and use your hotkey whenever
+              you want to speak.
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:border-slate-950 hover:bg-slate-950 hover:text-white"
+                onClick={() => setIsCompletionOpen(false)}
+                type="button"
+              >
+                Back
+              </button>
+              <button
+                className="rounded-xl border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-900 active:bg-slate-800"
+                onClick={onComplete}
+                type="button"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
