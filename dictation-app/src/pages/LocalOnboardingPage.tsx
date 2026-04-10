@@ -253,15 +253,14 @@ function TestStage({
     finalOutput && sessionState.stt_latency_ms !== null
       ? (sessionState.stt_latency_ms ?? 0) + (sessionState.cleanup_latency_ms ?? 0)
       : null;
-  const testActionLabel = isStartingRecording
+  const startActionLabel = isStartingRecording
     ? "Starting..."
-    : isStoppingRecording
-      ? "Stopping..."
-    : isRecording
-      ? "Stop recording"
-      : finalOutput || noSpeechMessage
-        ? "Try again"
-        : "Start test";
+    : finalOutput || noSpeechMessage
+      ? "Try again"
+      : "Start test";
+  const stopActionLabel = isStoppingRecording ? "Stopping..." : "Stop recording";
+  const shouldShowStartAction = !isRecording && !isStoppingRecording && !isBusy;
+  const shouldShowStopAction = isRecording || isStoppingRecording;
 
   useEffect(() => {
     if (!isRecordingActionPending) {
@@ -269,19 +268,22 @@ function TestStage({
     }
   }, [isRecordingActionPending]);
 
-  function runTestAction() {
-    if (isRecordingActionPending || isBusy) {
-      return;
-    }
-
-    if (isRecording) {
-      setPendingTestAction("stopping");
-      onStopRecording();
+  function runStartTestAction() {
+    if (isRecordingActionPending || isBusy || isRecording) {
       return;
     }
 
     setPendingTestAction("starting");
     onStartRecording();
+  }
+
+  function runStopTestAction() {
+    if (isRecordingActionPending || !isRecording) {
+      return;
+    }
+
+    setPendingTestAction("stopping");
+    onStopRecording();
   }
 
   return (
@@ -332,18 +334,30 @@ function TestStage({
       </div>
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-        <button
-          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50 ${
-            showRecordingControl
-              ? "border-slate-950 bg-slate-950 text-white"
-              : "border-black/10 text-slate-700 hover:border-slate-950 hover:bg-slate-950 hover:text-white disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:hover:text-slate-700"
-          }`}
-          disabled={isRecordingActionPending || (isBusy && !isRecording)}
-          onClick={runTestAction}
-          type="button"
-        >
-          {testActionLabel}
-        </button>
+        {shouldShowStartAction ? (
+          <button
+            className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50 ${
+              isStartingRecording
+                ? "border-slate-950 bg-slate-950 text-white"
+                : "border-black/10 text-slate-700 hover:border-slate-950 hover:bg-slate-950 hover:text-white disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:hover:text-slate-700"
+            }`}
+            disabled={isRecordingActionPending}
+            onClick={runStartTestAction}
+            type="button"
+          >
+            {startActionLabel}
+          </button>
+        ) : null}
+        {shouldShowStopAction ? (
+          <button
+            className="rounded-xl border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-900 active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isRecordingActionPending}
+            onClick={runStopTestAction}
+            type="button"
+          >
+            {stopActionLabel}
+          </button>
+        ) : null}
         <button
           className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 ${
             isDemoVisible
