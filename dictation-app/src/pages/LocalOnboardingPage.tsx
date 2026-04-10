@@ -430,32 +430,25 @@ function TestStage({
             <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/45 px-6 backdrop-blur-md">
               <div className="w-full max-w-sm rounded-[26px] border border-black/10 bg-white p-6 text-center shadow-[0_28px_90px_rgba(15,23,42,0.28)]">
                 <h2 className="text-xl font-medium tracking-[-0.02em] text-slate-950">
-                  You are all set
+                  You're all set
                 </h2>
                 <div className="mx-auto mt-5 inline-flex items-center gap-3 rounded-2xl border border-black/10 bg-slate-950/[0.035] px-4 py-3">
                   <span className="inline-flex items-center gap-1.5">
-                    {hotkeyTokens(sessionState.hotkey).map((token) => (
-                      <kbd
-                        className="min-w-8 rounded-lg border border-black/10 bg-white px-2 py-1 text-sm font-semibold text-slate-950 shadow-sm"
-                        key={token}
-                      >
-                        {token}
-                      </kbd>
+                    {hotkeyTokens(sessionState.hotkey).map((token, index) => (
+                      <span className="inline-flex items-center gap-1.5" key={`${token}-${index}`}>
+                        {index > 0 ? <span className="text-sm text-slate-400">+</span> : null}
+                        <kbd className="min-w-8 rounded-lg border border-black/10 bg-white px-2 py-1 text-sm font-semibold text-slate-950 shadow-sm">
+                          {token}
+                        </kbd>
+                      </span>
                     ))}
                   </span>
-                  <span className="text-sm text-slate-500">anytime to dictate</span>
+                  <span className="text-sm text-slate-500">Any time to dictate</span>
                 </div>
                 <p className="mx-auto mt-4 text-sm leading-6 text-slate-600">
                   Dictation is running in your menu bar.
                 </p>
                 <div className="mt-6 flex items-center justify-center gap-3">
-                  <button
-                    className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:border-slate-950 hover:bg-slate-950 hover:text-white"
-                    onClick={() => setIsCompletionOpen(false)}
-                    type="button"
-                  >
-                    Back
-                  </button>
                   <button
                     className="rounded-xl border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-900 active:bg-slate-800"
                     onClick={onComplete}
