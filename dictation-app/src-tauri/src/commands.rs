@@ -189,7 +189,7 @@ pub fn paste_latest_output(
     paste_latest_output_internal(&app, &state)
 }
 
-pub fn handle_hotkey_toggle(app: &AppHandle) {
+pub fn handle_hotkey_pressed(app: &AppHandle) {
     let state = app.state::<AppState>();
     let current_state = state
         .session
@@ -197,28 +197,40 @@ pub fn handle_hotkey_toggle(app: &AppHandle) {
         .map(|session| session.snapshot().state)
         .unwrap_or_else(|_| "error".to_string());
 
-    let result = if current_state == "recording" {
-        let app_handle = app.clone();
-        tauri::async_runtime::spawn(async move {
-            let state = app_handle.state::<AppState>();
-            let should_paste = state
-                .runtime
-                .lock()
-                .map(|runtime| !runtime.dictation_test_mode)
-                .unwrap_or(true);
-
-            if let Err(error) = stop_recording_internal(&app_handle, &state, should_paste).await {
-                let _ = update_error_state(&app_handle, &state, error);
-            }
-        });
+    if current_state == "recording" {
         return;
-    } else {
-        start_recording_internal(app, &state)
-    };
+    }
 
-    if let Err(error) = result {
+    if let Err(error) = start_recording_internal(app, &state) {
         let _ = update_error_state(app, &state, error);
     }
+}
+
+pub fn handle_hotkey_released(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let current_state = state
+        .session
+        .lock()
+        .map(|session| session.snapshot().state)
+        .unwrap_or_else(|_| "error".to_string());
+
+    if current_state != "recording" {
+        return;
+    }
+
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app_handle.state::<AppState>();
+        let should_paste = state
+            .runtime
+            .lock()
+            .map(|runtime| !runtime.dictation_test_mode)
+            .unwrap_or(true);
+
+        if let Err(error) = stop_recording_internal(&app_handle, &state, should_paste).await {
+            let _ = update_error_state(&app_handle, &state, error);
+        }
+    });
 }
 
 fn start_recording_internal(

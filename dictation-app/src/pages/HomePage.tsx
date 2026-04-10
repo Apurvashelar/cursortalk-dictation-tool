@@ -153,7 +153,7 @@ export function HomePage({
                 </div>
                 <div>
                   <p className="recording-title">Listening...</p>
-                  <p className="muted">Speak naturally. Press the shortcut again to stop.</p>
+                  <p className="muted">Speak naturally. Release the shortcut to finish.</p>
                 </div>
               </div>
             ) : null}

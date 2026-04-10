@@ -18,8 +18,9 @@ fn main() {
         .with_shortcut(shortcut.as_str())
         .expect("failed to configure global shortcut")
         .with_handler(|app, _shortcut, event| {
-            if event.state == ShortcutState::Pressed {
-                commands::handle_hotkey_toggle(app);
+            match event.state {
+                ShortcutState::Pressed => commands::handle_hotkey_pressed(app),
+                ShortcutState::Released => commands::handle_hotkey_released(app),
             }
         })
         .build();

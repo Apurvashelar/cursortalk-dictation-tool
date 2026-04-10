@@ -120,7 +120,7 @@ impl SessionRuntime {
             ),
             SessionStatus::Recording => (
                 "recording".to_string(),
-                "Recording from the default microphone. Press the hotkey again to stop.".to_string(),
+                "Recording from the default microphone. Release the hotkey to finish.".to_string(),
             ),
             SessionStatus::Transcribing => (
                 "transcribing".to_string(),

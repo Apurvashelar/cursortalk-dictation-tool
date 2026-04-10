@@ -279,7 +279,7 @@ function TestStage({
         </div>
         <div className="mt-4 min-h-[150px] rounded-[22px] border border-emerald-950/10 bg-white/70 p-5 text-base leading-7 text-slate-900">
           {finalOutput ??
-            `Press ${sessionState.hotkey}, say: “The quarterly report shows strong growth.” Then press it again to stop.`}
+            `Hold ${sessionState.hotkey} and say: “The quarterly report shows strong growth.” Release to finish.`}
         </div>
       </div>
 
