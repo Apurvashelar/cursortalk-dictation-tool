@@ -12,10 +12,6 @@ type AuthOnboardingPageProps = {
   onSkip: () => void;
 };
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
 function GoogleMark() {
   return (
     <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-black/10 bg-white text-[13px] font-semibold text-slate-950">
@@ -37,42 +33,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-
-  function resetError() {
-    if (error) {
-      setError("");
-    }
-  }
-
-  function submitForm() {
-    const nextEmail = email.trim();
-
-    if (!isValidEmail(nextEmail)) {
-      setError("Enter a valid email address.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-
-    if (mode === "signup" && password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    setError(
-      mode === "signin"
-        ? "Sign in is not connected yet. Use Skip for now, or connect the auth endpoint."
-        : "Account creation is not connected yet. Use Skip for now, or connect the registration endpoint.",
-    );
-  }
-
-  function startSocialLogin(provider: "Google" | "GitHub") {
-    setError(`${provider} OAuth is not connected yet. Use Skip for now.`);
-  }
 
   return (
     <BackgroundPaths>
@@ -111,7 +71,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
                 }`}
                 onClick={() => {
                   setMode("signin");
-                  resetError();
                 }}
                 type="button"
               >
@@ -125,7 +84,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
                 }`}
                 onClick={() => {
                   setMode("signup");
-                  resetError();
                 }}
                 type="button"
               >
@@ -137,7 +95,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
               className="mt-7 space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
-                submitForm();
               }}
             >
               <label className="block">
@@ -148,7 +105,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
                   inputMode="email"
                   onChange={(event) => {
                     setEmail(event.target.value);
-                    resetError();
                   }}
                   placeholder="you@company.com"
                   type="email"
@@ -163,7 +119,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
                   className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25"
                   onChange={(event) => {
                     setPassword(event.target.value);
-                    resetError();
                   }}
                   placeholder="At least 8 characters"
                   type="password"
@@ -181,7 +136,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
                     className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25"
                     onChange={(event) => {
                       setConfirmPassword(event.target.value);
-                      resetError();
                     }}
                     placeholder="Re-enter password"
                     type="password"
@@ -190,16 +144,10 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
                 </label>
               ) : null}
 
-              {error ? (
-                <p className="rounded-2xl border border-red-900/10 bg-red-950/[0.035] px-4 py-3 text-sm leading-6 text-red-800">
-                  {error}
-                </p>
-              ) : null}
-
               <Button
                 className="w-full rounded-2xl bg-slate-950 px-6 py-6 text-base text-white hover:bg-slate-900"
                 size="lg"
-                type="submit"
+                type="button"
               >
                 {mode === "signin" ? "Sign in" : "Create account"}
               </Button>
@@ -214,7 +162,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
             <div className="grid gap-3 sm:grid-cols-2">
               <button
                 className="inline-flex items-center justify-center gap-3 rounded-2xl border border-black/10 bg-white/84 px-4 py-3 text-sm font-medium text-slate-800 transition-all hover:border-black/20 hover:bg-white"
-                onClick={() => startSocialLogin("Google")}
                 type="button"
               >
                 <GoogleMark />
@@ -222,7 +169,6 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
               </button>
               <button
                 className="inline-flex items-center justify-center gap-3 rounded-2xl border border-black/10 bg-white/84 px-4 py-3 text-sm font-medium text-slate-800 transition-all hover:border-black/20 hover:bg-white"
-                onClick={() => startSocialLogin("GitHub")}
                 type="button"
               >
                 <GitHubMark />

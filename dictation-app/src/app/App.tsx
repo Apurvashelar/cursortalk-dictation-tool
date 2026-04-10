@@ -29,7 +29,6 @@ const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
 const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
 const ORGANIZATION_BASE_URL_KEY = "voiceflow-enterprise-app.organization-base-url";
 const ORGANIZATION_API_KEY_KEY = "voiceflow-enterprise-app.organization-api-key";
-const AUTH_SKIPPED_KEY = "voiceflow-enterprise-app.auth-skipped";
 const LOCAL_SETUP_PROGRESS_EVENT = "local-setup-progress";
 const localPreflightSteps = [
   "Checking local setup",
@@ -124,13 +123,6 @@ export function App() {
     }
 
     return window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true" ? null : "welcome";
-  });
-  const [authSkipped, setAuthSkipped] = useState(() => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    return window.localStorage.getItem(AUTH_SKIPPED_KEY) === "true";
   });
   const [localSetupStepIndex, setLocalSetupStepIndex] = useState(0);
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
@@ -560,10 +552,6 @@ export function App() {
   }
 
   function skipAuthentication() {
-    setAuthSkipped(true);
-    window.localStorage.setItem(AUTH_SKIPPED_KEY, "true");
-    window.localStorage.setItem(SELECTED_MODE_KEY, "local");
-    setSelectedMode("local");
     setOnboardingStep("mode");
   }
 
@@ -618,16 +606,12 @@ export function App() {
       return (
         <WelcomePage
           step={onboardingStep}
-          organizationLocked={authSkipped}
           onContinue={() => setOnboardingStep("auth")}
           onBack={() => (onboardingStep === "mode" ? setOnboardingStep("auth") : setOnboardingStep("welcome"))}
           onChooseMode={(mode) => {
             if (mode === "local") {
               beginLocalOnboarding();
             } else {
-              if (authSkipped) {
-                return;
-              }
               setSelectedMode("organization");
               setOnboardingStep("organization_setup");
             }

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 
 type WelcomePageProps = {
   step: "welcome" | "mode";
-  organizationLocked?: boolean;
   onContinue: () => void;
   onBack: () => void;
   onChooseMode: (mode: "local" | "organization") => void;
@@ -18,8 +17,6 @@ function ModeCard({
   tag,
   attributes,
   storageFootnote,
-  disabled,
-  disabledFootnote,
   onClick,
 }: {
   title: string;
@@ -27,14 +24,11 @@ function ModeCard({
   tag: string;
   attributes: string[];
   storageFootnote?: string;
-  disabled?: boolean;
-  disabledFootnote?: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className="group relative grid h-full w-full grid-rows-[auto_auto_auto_1fr_auto_auto] rounded-[28px] border border-black/10 bg-white/78 p-7 text-left shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-black/25 hover:bg-white/92 hover:shadow-[0_32px_120px_rgba(15,23,42,0.14)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:border-black/10 disabled:hover:bg-white/78 disabled:hover:shadow-[0_20px_80px_rgba(15,23,42,0.08)]"
-      disabled={disabled}
+      className="group relative grid h-full w-full grid-rows-[auto_auto_auto_1fr_auto_auto] rounded-[28px] border border-black/10 bg-white/78 p-7 text-left shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-black/25 hover:bg-white/92 hover:shadow-[0_32px_120px_rgba(15,23,42,0.14)]"
       onClick={onClick}
       type="button"
     >
@@ -60,16 +54,12 @@ function ModeCard({
         <div className="mt-6 rounded-xl border border-black/8 bg-black/[0.03] px-3.5 py-2.5 text-[13px] leading-5 text-slate-600">
           {storageFootnote}
         </div>
-      ) : disabledFootnote ? (
-        <div className="mt-6 rounded-xl border border-black/8 bg-black/[0.03] px-3.5 py-2.5 text-[13px] leading-5 text-slate-600">
-          {disabledFootnote}
-        </div>
       ) : (
         <div className="mt-6" />
       )}
 
       <div className="mt-7 self-end text-sm font-medium text-slate-950 transition-transform duration-300 group-hover:translate-x-1">
-        {disabled ? "Sign in required" : `Choose ${title}`}
+        Choose {title}
       </div>
     </button>
   );
@@ -77,7 +67,6 @@ function ModeCard({
 
 export function WelcomePage({
   step,
-  organizationLocked = false,
   onContinue,
   onBack,
   onChooseMode,
@@ -133,8 +122,6 @@ export function WelcomePage({
                     "Requires server URL + API key",
                     "Managed by IT/admin",
                   ]}
-                  disabled={organizationLocked}
-                  disabledFootnote="Sign in to detect and configure an organization workspace."
                   onClick={() => onChooseMode("organization")}
                 />
               </div>
