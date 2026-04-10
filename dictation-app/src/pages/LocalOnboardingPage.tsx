@@ -299,8 +299,12 @@ function TestStage({
 
       <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
         <button
-          className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:border-slate-950 hover:bg-slate-950 hover:text-white active:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:hover:text-slate-700"
-          disabled={(isBusy && !isRecording) || isRecordingActionPending}
+          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50 ${
+            isRecording
+              ? "border-slate-950 bg-slate-950 text-white"
+              : "border-black/10 text-slate-700 hover:border-slate-950 hover:bg-slate-950 hover:text-white disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:hover:text-slate-700"
+          }`}
+          disabled={isBusy && !isRecording}
           onClick={runTestAction}
           type="button"
         >
@@ -319,7 +323,6 @@ function TestStage({
         </button>
         <Button
           className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm text-white hover:bg-slate-900 active:bg-slate-800"
-          disabled={!finalOutput}
           onClick={onComplete}
         >
           Looks great
