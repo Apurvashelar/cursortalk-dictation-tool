@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type {
   AudioInputDevice,
   BackendHealth,
@@ -98,12 +100,47 @@ export function HomePage({
   onCopyLatest,
   recentActivity,
 }: HomePageProps) {
+  const [pendingRecordingAction, setPendingRecordingAction] = useState<"starting" | "stopping" | null>(
+    null,
+  );
   const defaultDevice = audioDevices.find((device) => device.is_default);
   const isRecording = sessionState.state === "recording";
   const isBusy =
     sessionState.state === "transcribing" ||
     sessionState.state === "cleaning" ||
     sessionState.state === "pasting";
+  const isStartingRecording = pendingRecordingAction === "starting" && isRecordingActionPending;
+  const isStoppingRecording = pendingRecordingAction === "stopping" && isRecordingActionPending;
+  const recordingActionLabel = isStartingRecording
+    ? "Starting..."
+    : isStoppingRecording
+      ? "Stopping..."
+      : isRecording
+        ? "Stop dictation"
+        : isBusy
+          ? "Processing..."
+          : "Start dictation";
+
+  useEffect(() => {
+    if (!isRecordingActionPending) {
+      setPendingRecordingAction(null);
+    }
+  }, [isRecordingActionPending]);
+
+  function runRecordingAction() {
+    if (isRecordingActionPending || isBusy) {
+      return;
+    }
+
+    if (isRecording) {
+      setPendingRecordingAction("stopping");
+      onStopRecording();
+      return;
+    }
+
+    setPendingRecordingAction("starting");
+    onStartRecording();
+  }
 
   return (
     <div className="page-shell">
@@ -161,19 +198,11 @@ export function HomePage({
             <div className="button-row">
               <button
                 className="action-button action-button-large"
-                disabled={isRecording || isBusy || isRecordingActionPending}
-                onClick={onStartRecording}
+                disabled={isBusy || isRecordingActionPending}
+                onClick={runRecordingAction}
                 type="button"
               >
-                Start dictation
-              </button>
-              <button
-                className="secondary-button"
-                disabled={!isRecording || isRecordingActionPending}
-                onClick={onStopRecording}
-                type="button"
-              >
-                Stop
+                {recordingActionLabel}
               </button>
             </div>
 
