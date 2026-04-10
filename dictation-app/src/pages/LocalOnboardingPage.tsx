@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, PartyPopper } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -429,8 +429,9 @@ function TestStage({
         ? createPortal(
             <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/45 px-6 backdrop-blur-md">
               <div className="w-full max-w-sm rounded-[26px] border border-black/10 bg-white p-6 text-center shadow-[0_28px_90px_rgba(15,23,42,0.28)]">
-                <h2 className="text-xl font-medium tracking-[-0.02em] text-slate-950">
+                <h2 className="flex items-center justify-center gap-2 text-xl font-medium tracking-[-0.02em] text-slate-950">
                   You're all set
+                  <PartyPopper className="h-5 w-5" />
                 </h2>
                 <div className="mx-auto mt-5 inline-flex items-center gap-3 rounded-2xl border border-black/10 bg-slate-950/[0.035] px-4 py-3">
                   <span className="inline-flex items-center gap-1.5">
