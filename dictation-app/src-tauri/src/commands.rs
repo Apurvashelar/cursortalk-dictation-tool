@@ -58,6 +58,20 @@ pub fn set_runtime_mode(
 }
 
 #[tauri::command]
+pub fn set_dictation_test_mode(
+    enabled: bool,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
+    let mut runtime = state
+        .runtime
+        .lock()
+        .map_err(|_| "failed to lock runtime settings".to_string())?;
+
+    runtime.dictation_test_mode = enabled;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_backend_health() -> BackendHealth {
     let config = AppConfig::default();
     let health_url = config.health_url.clone();
@@ -187,7 +201,13 @@ pub fn handle_hotkey_toggle(app: &AppHandle) {
         let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
             let state = app_handle.state::<AppState>();
-            if let Err(error) = stop_recording_internal(&app_handle, &state, true).await {
+            let should_paste = state
+                .runtime
+                .lock()
+                .map(|runtime| !runtime.dictation_test_mode)
+                .unwrap_or(true);
+
+            if let Err(error) = stop_recording_internal(&app_handle, &state, should_paste).await {
                 let _ = update_error_state(&app_handle, &state, error);
             }
         });

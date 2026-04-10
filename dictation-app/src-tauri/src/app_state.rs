@@ -50,6 +50,7 @@ pub enum RuntimeMode {
 pub struct RuntimeSettings {
     pub mode: RuntimeMode,
     pub organization_base_url: Option<String>,
+    pub dictation_test_mode: bool,
 }
 
 pub struct LocalCleanupServerState {
@@ -95,6 +96,7 @@ impl Default for AppState {
             runtime: Mutex::new(RuntimeSettings {
                 mode: RuntimeMode::Organization,
                 organization_base_url: None,
+                dictation_test_mode: false,
             }),
             local_cleanup_server: Mutex::new(LocalCleanupServerState {
                 child: None,

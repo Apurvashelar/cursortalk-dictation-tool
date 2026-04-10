@@ -33,6 +33,7 @@ fn main() {
             commands::get_app_status,
             commands::get_config,
             commands::set_runtime_mode,
+            commands::set_dictation_test_mode,
             commands::get_backend_health,
             commands::check_backend_health_with_urls,
             commands::get_session_state,

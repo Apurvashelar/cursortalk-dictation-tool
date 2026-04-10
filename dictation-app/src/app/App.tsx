@@ -111,7 +111,6 @@ export function App() {
     | "auth"
     | "mode"
     | "local_setup"
-    | "local_demo"
     | "local_test"
     | "organization_setup"
     | null
@@ -329,7 +328,7 @@ export function App() {
             if (permissionsNeedAction(nextPermissionStatus)) {
               setLocalSetupAwaitingPermissions(true);
             } else {
-              setOnboardingStep("local_demo");
+              setOnboardingStep("local_test");
             }
           })();
         }
@@ -530,7 +529,7 @@ export function App() {
       localSetupAwaitingPermissions &&
       !permissionsNeedAction(nextPermissionStatus)
     ) {
-      setOnboardingStep("local_demo");
+      setOnboardingStep("local_test");
     }
   }
 
@@ -576,6 +575,7 @@ export function App() {
 
   function finishLocalOnboarding() {
     setSelectedMode("local");
+    void invoke("set_dictation_test_mode", { enabled: false });
     window.localStorage.setItem(SELECTED_MODE_KEY, "local");
     window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
     setOnboardingStep(null);
@@ -619,6 +619,14 @@ export function App() {
       setOrganizationSetupMessage(`Connection check failed. ${String(error)}`);
     }
   }
+
+  useEffect(() => {
+    void invoke("set_dictation_test_mode", { enabled: onboardingStep === "local_test" }).catch(
+      (error) => {
+        console.error("Failed to update dictation test mode", error);
+      },
+    );
+  }, [onboardingStep]);
 
   if (onboardingStep) {
     if (onboardingStep === "welcome" || onboardingStep === "mode") {
@@ -673,11 +681,7 @@ export function App() {
     }
 
     const localOnboardingStage: LocalOnboardingStage =
-      onboardingStep === "local_setup"
-        ? "setup"
-        : onboardingStep === "local_demo"
-          ? "demo"
-          : "test";
+      onboardingStep === "local_setup" ? "setup" : "test";
 
     return (
       <LocalOnboardingPage
@@ -694,9 +698,11 @@ export function App() {
         onRefreshPermissions={refreshOnboardingPermissions}
         onOpenPermissionSettings={openPermissionSettings}
         onBack={() => setOnboardingStep("mode")}
-        onSkipDemo={() => setOnboardingStep("local_test")}
-        onContinueFromDemo={() => setOnboardingStep("local_test")}
         onComplete={finishLocalOnboarding}
+        sessionState={sessionState}
+        isRecordingActionPending={isRecordingActionPending}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
       />
     );
   }

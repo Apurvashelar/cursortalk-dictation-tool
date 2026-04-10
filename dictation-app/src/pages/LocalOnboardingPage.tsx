@@ -1,13 +1,13 @@
-import { ArrowLeft, PlayCircle, X } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BackgroundPaths } from "@/components/ui/background-paths";
 import { Button } from "@/components/ui/button";
-import type { PermissionStatusReport } from "../api/backend";
+import type { PermissionStatusReport, SessionState } from "../api/backend";
 import { PermissionPrompt } from "../components/PermissionPrompt";
 
-export type LocalOnboardingStage = "setup" | "demo" | "test";
+export type LocalOnboardingStage = "setup" | "test";
 
 type LocalOnboardingPageProps = {
   stage: LocalOnboardingStage;
@@ -23,9 +23,11 @@ type LocalOnboardingPageProps = {
   onRefreshPermissions: () => void;
   onOpenPermissionSettings: (permission: "microphone" | "accessibility") => void;
   onBack: () => void;
-  onSkipDemo: () => void;
-  onContinueFromDemo: () => void;
   onComplete: () => void;
+  sessionState: SessionState;
+  isRecordingActionPending: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
 };
 
 const DEMO_VIDEO_URL = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
@@ -217,118 +219,121 @@ function SetupStage({
   );
 }
 
-function DemoStage({
-  onSkipDemo,
-  onContinueFromDemo,
+function TestStage({
+  sessionState,
+  isRecordingActionPending,
+  onStartRecording,
+  onStopRecording,
+  onComplete,
 }: {
-  onSkipDemo: () => void;
-  onContinueFromDemo: () => void;
+  sessionState: SessionState;
+  isRecordingActionPending: boolean;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onComplete: () => void;
 }) {
-  return (
-    <div className="rounded-[34px] border border-black/10 bg-white/78 p-8 shadow-[0_30px_120px_rgba(15,23,42,0.1)] backdrop-blur-2xl md:p-10">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-[0.22em] text-slate-500">
-            Quick demo
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-            See how local dictation feels
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-            Watch a short example before your first local test. You can skip this at any time.
-          </p>
-        </div>
-        <button
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white/80 text-slate-600 transition-colors hover:text-slate-950"
-          onClick={onSkipDemo}
-          type="button"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+  const [isDemoVisible, setIsDemoVisible] = useState(false);
+  const isRecording = sessionState.state === "recording";
+  const isBusy =
+    sessionState.state === "transcribing" ||
+    sessionState.state === "cleaning" ||
+    sessionState.state === "pasting";
+  const finalOutput = sessionState.final_output;
+  const processedMs =
+    finalOutput && sessionState.stt_latency_ms !== null
+      ? (sessionState.stt_latency_ms ?? 0) + (sessionState.cleanup_latency_ms ?? 0)
+      : null;
+  const testActionLabel = isRecording ? "Stop recording" : finalOutput ? "Try again" : "Start test";
 
-      <div className="mt-8 overflow-hidden rounded-[28px] border border-black/10 bg-black shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
-        <video
-          autoPlay
-          className="h-[360px] w-full object-cover"
-          controls
-          loop
-          muted
-          playsInline
-          src={DEMO_VIDEO_URL}
-        />
-      </div>
+  function runTestAction() {
+    if (isRecording) {
+      onStopRecording();
+      return;
+    }
 
-      <div className="mt-8 flex flex-wrap items-center gap-4">
-        <Button
-          className="rounded-2xl bg-slate-950 px-6 py-6 text-base text-white hover:bg-slate-900"
-          onClick={onContinueFromDemo}
-          size="lg"
-        >
-          Continue to test
-        </Button>
-        <button
-          className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-950"
-          onClick={onSkipDemo}
-          type="button"
-        >
-          Skip
-        </button>
-      </div>
-    </div>
-  );
-}
+    onStartRecording();
+  }
 
-function TestStage({ onComplete }: { onComplete: () => void }) {
   return (
     <div className="rounded-[34px] border border-black/10 bg-white/78 p-8 shadow-[0_30px_120px_rgba(15,23,42,0.1)] backdrop-blur-2xl md:p-10">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-sm font-medium uppercase tracking-[0.22em] text-slate-500">
-          Local mode ready
+          Test dictation
         </p>
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
-          Test local mode
-        </h1>
-        <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-          Your local setup is ready. Run a short dictation next, or skip the test and go straight
-          to the app.
+        <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600">
+          Press {sessionState.hotkey}, say: “The quarterly report shows um strong growth in all
+          regions and uh we should schedule a follow up meeting.” Then press it again to stop.
         </p>
       </div>
 
-      <div className="mx-auto mt-10 grid max-w-3xl gap-4 md:grid-cols-3">
-        <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-left">
-          <p className="text-sm font-semibold text-slate-950">Speech model</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Prepared locally on this machine.</p>
-        </div>
-        <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-left">
-          <p className="text-sm font-semibold text-slate-950">Cleanup model</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Prepared locally on this machine.</p>
-        </div>
-        <div className="rounded-[24px] border border-black/8 bg-black/[0.025] px-5 py-4 text-left">
-          <p className="text-sm font-semibold text-slate-950">Next step</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Start a short dictation from the main screen.
+      <div className="mx-auto mt-9 max-w-3xl rounded-[28px] border border-emerald-950/10 bg-emerald-950/[0.035] p-6 text-left">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-emerald-900">
+            Final output
           </p>
+          <span className="text-sm text-emerald-900/70">
+            {isRecording
+              ? "Listening..."
+              : isBusy
+                ? "Processing..."
+                : finalOutput
+                  ? "Ready"
+                  : "Waiting for test"}
+          </span>
+        </div>
+        <div className="mt-4 min-h-[150px] rounded-[22px] border border-emerald-950/10 bg-white/70 p-5 text-base leading-7 text-slate-900">
+          {finalOutput ??
+            "Your final dictation output will appear here after the test recording finishes."}
         </div>
       </div>
 
-      <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+      <div className="mt-5 text-center text-sm text-slate-600">
+        {sessionState.state === "error"
+          ? sessionState.message
+          : processedMs !== null
+            ? `Processed in ${processedMs}ms`
+            : "Use the shortcut or Start test button below."}
+      </div>
+
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+        <button
+          className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-black/20 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={(isBusy && !isRecording) || isRecordingActionPending}
+          onClick={runTestAction}
+          type="button"
+        >
+          {testActionLabel}
+        </button>
+        <button
+          className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-black/20 hover:text-slate-950"
+          onClick={() => setIsDemoVisible((current) => !current)}
+          type="button"
+        >
+          {isDemoVisible ? "Hide demo" : "Quick demo"}
+        </button>
         <Button
           className="rounded-2xl bg-slate-950 px-6 py-6 text-base text-white hover:bg-slate-900"
+          disabled={!finalOutput}
           onClick={onComplete}
           size="lg"
         >
-          <PlayCircle className="mr-2 h-4 w-4" />
-          Test dictation
+          Looks great
         </Button>
-        <button
-          className="text-sm font-medium text-slate-600 transition-colors hover:text-slate-950"
-          onClick={onComplete}
-          type="button"
-        >
-          Skip for now
-        </button>
       </div>
+
+      {isDemoVisible ? (
+        <div className="mt-8 overflow-hidden rounded-[28px] border border-black/10 bg-black shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
+          <video
+            autoPlay
+            className="h-[320px] w-full object-cover"
+            controls
+            loop
+            muted
+            playsInline
+            src={DEMO_VIDEO_URL}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -347,9 +352,11 @@ export function LocalOnboardingPage({
   onRefreshPermissions,
   onOpenPermissionSettings,
   onBack,
-  onSkipDemo,
-  onContinueFromDemo,
   onComplete,
+  sessionState,
+  isRecordingActionPending,
+  onStartRecording,
+  onStopRecording,
 }: LocalOnboardingPageProps) {
   return (
     <Shell onBack={onBack}>
@@ -367,10 +374,14 @@ export function LocalOnboardingPage({
           onRefreshPermissions={onRefreshPermissions}
           onOpenPermissionSettings={onOpenPermissionSettings}
         />
-      ) : stage === "demo" ? (
-        <DemoStage onContinueFromDemo={onContinueFromDemo} onSkipDemo={onSkipDemo} />
       ) : (
-        <TestStage onComplete={onComplete} />
+        <TestStage
+          sessionState={sessionState}
+          isRecordingActionPending={isRecordingActionPending}
+          onStartRecording={onStartRecording}
+          onStopRecording={onStopRecording}
+          onComplete={onComplete}
+        />
       )}
     </Shell>
   );
