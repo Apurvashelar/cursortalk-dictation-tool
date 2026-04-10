@@ -62,7 +62,7 @@ fn microphone_permission_state() -> PermissionState {
     match probe_microphone_access() {
         Ok(()) => PermissionState {
             status: "ready".to_string(),
-            label: "Ready".to_string(),
+            label: "Granted".to_string(),
             message: "Microphone access is available for recording.".to_string(),
         },
         Err(error) => {
@@ -73,7 +73,7 @@ fn microphone_permission_state() -> PermissionState {
                 "error"
             };
             let label = if status == "needs_access" {
-                "Needs access"
+                "Allow access"
             } else {
                 "Needs attention"
             };
@@ -93,13 +93,13 @@ fn accessibility_permission_state() -> PermissionState {
         if AXIsProcessTrusted() {
             PermissionState {
                 status: "ready".to_string(),
-                label: "Ready".to_string(),
+                label: "Granted".to_string(),
                 message: "Accessibility access is available for paste automation.".to_string(),
             }
         } else {
             PermissionState {
                 status: "needs_access".to_string(),
-                label: "Needs access".to_string(),
+                label: "Allow access".to_string(),
                 message: "Allow Accessibility access so Voice Dictation can paste into other apps."
                     .to_string(),
             }
