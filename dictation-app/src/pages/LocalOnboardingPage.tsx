@@ -260,10 +260,6 @@ function TestStage({
         <p className="text-sm font-medium uppercase tracking-[0.22em] text-slate-500">
           Test dictation
         </p>
-        <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600">
-          Press {sessionState.hotkey}, say: “The quarterly report shows um strong growth in all
-          regions and uh we should schedule a follow up meeting.” Then press it again to stop.
-        </p>
       </div>
 
       <div className="mx-auto mt-9 max-w-3xl rounded-[28px] border border-emerald-950/10 bg-emerald-950/[0.035] p-6 text-left">
@@ -283,7 +279,7 @@ function TestStage({
         </div>
         <div className="mt-4 min-h-[150px] rounded-[22px] border border-emerald-950/10 bg-white/70 p-5 text-base leading-7 text-slate-900">
           {finalOutput ??
-            "Your final dictation output will appear here after the test recording finishes."}
+            `Press ${sessionState.hotkey}, say: “The quarterly report shows strong growth.” Then press it again to stop.`}
         </div>
       </div>
 
