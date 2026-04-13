@@ -10,6 +10,10 @@ type AuthMode = "signin" | "signup";
 type AuthOnboardingPageProps = {
   onBack: () => void;
   onSkip: () => void;
+  onSignIn: (input: { email: string; password: string }) => Promise<void>;
+  onSignUp: (input: { email: string; password: string }) => Promise<void>;
+  isSubmitting: boolean;
+  errorMessage: string | null;
 };
 
 function GoogleMark() {
@@ -28,11 +32,59 @@ function GitHubMark() {
   );
 }
 
-export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) {
+export function AuthOnboardingPage({
+  onBack,
+  onSkip,
+  onSignIn,
+  onSignUp,
+  isSubmitting,
+  errorMessage,
+}: AuthOnboardingPageProps) {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setValidationError("Enter an email address.");
+      return;
+    }
+
+    if (!password) {
+      setValidationError("Enter a password.");
+      return;
+    }
+
+    if (mode === "signup") {
+      if (password.length < 8) {
+        setValidationError("Use at least 8 characters for the password.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        setValidationError("Password confirmation does not match.");
+        return;
+      }
+    }
+
+    setValidationError(null);
+
+    if (mode === "signin") {
+      await onSignIn({
+        email: normalizedEmail,
+        password,
+      });
+      return;
+    }
+
+    await onSignUp({
+      email: normalizedEmail,
+      password,
+    });
+  }
 
   return (
     <BackgroundPaths>
@@ -93,8 +145,9 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
 
             <form
               className="mt-7 space-y-4"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault();
+                await handleSubmit();
               }}
             >
               <label className="block">
@@ -146,11 +199,22 @@ export function AuthOnboardingPage({ onBack, onSkip }: AuthOnboardingPageProps) 
 
               <Button
                 className="w-full rounded-2xl bg-slate-950 px-6 py-6 text-base text-white hover:bg-slate-900"
+                disabled={isSubmitting}
                 size="lg"
-                type="button"
+                type="submit"
               >
-                {mode === "signin" ? "Sign in" : "Create account"}
+                {isSubmitting
+                  ? mode === "signin"
+                    ? "Signing in..."
+                    : "Creating account..."
+                  : mode === "signin"
+                    ? "Sign in"
+                    : "Create account"}
               </Button>
+
+              {validationError || errorMessage ? (
+                <p className="text-sm text-red-500">{validationError ?? errorMessage}</p>
+              ) : null}
             </form>
 
             <div className="my-7 flex items-center gap-4">

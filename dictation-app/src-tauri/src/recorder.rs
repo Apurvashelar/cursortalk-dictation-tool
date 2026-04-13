@@ -12,6 +12,19 @@ use cpal::{
     Device, Sample, SampleFormat, SampleRate, Stream, SupportedStreamConfig,
 };
 use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
+
+use crate::{app_state::AppState, desktop_ui};
+
+pub const RECORDING_ACTIVITY_EVENT: &str = "recording-activity-changed";
+
+const SPEECH_RMS_THRESHOLD: f32 = 0.006;
+const SILENT_CALLBACKS_BEFORE_IDLE: u8 = 3;
+
+#[derive(Clone, Serialize)]
+pub struct RecordingActivityPayload {
+    pub is_speaking: bool,
+}
 
 #[derive(Clone, Serialize)]
 pub struct AudioInputDevice {
@@ -52,6 +65,7 @@ pub struct RecorderController {
 
 enum RecorderCommand {
     Start {
+        app: AppHandle,
         respond_to: mpsc::Sender<Result<RecordingDetails>>,
     },
     Stop {
@@ -85,11 +99,15 @@ pub fn list_input_devices() -> Result<Vec<AudioInputDevice>> {
     Ok(devices)
 }
 
-fn start_recording() -> Result<RecorderHandle> {
+fn start_recording(app: AppHandle) -> Result<RecorderHandle> {
     let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| anyhow!("no microphone input device available"))?;
+    let preferred_input_name = app
+        .state::<AppState>()
+        .runtime
+        .lock()
+        .ok()
+        .and_then(|runtime| runtime.preferred_audio_input.clone());
+    let device = choose_input_device(&host, preferred_input_name.as_deref())?;
     let device_name = device
         .name()
         .unwrap_or_else(|_| "Unknown Input".to_string());
@@ -127,16 +145,32 @@ fn start_recording() -> Result<RecorderHandle> {
         eprintln!("recording stream error: {error}");
     };
 
+    let activity_state = Arc::new(Mutex::new(RecordingActivityState::default()));
     let stream = match sample_format {
-        SampleFormat::F32 => {
-            build_stream::<f32>(&device, &config, writer_for_stream, error_callback)?
-        }
-        SampleFormat::I16 => {
-            build_stream::<i16>(&device, &config, writer_for_stream, error_callback)?
-        }
-        SampleFormat::U16 => {
-            build_stream::<u16>(&device, &config, writer_for_stream, error_callback)?
-        }
+        SampleFormat::F32 => build_stream::<f32>(
+            &device,
+            &config,
+            writer_for_stream,
+            app,
+            activity_state,
+            error_callback,
+        )?,
+        SampleFormat::I16 => build_stream::<i16>(
+            &device,
+            &config,
+            writer_for_stream,
+            app,
+            activity_state,
+            error_callback,
+        )?,
+        SampleFormat::U16 => build_stream::<u16>(
+            &device,
+            &config,
+            writer_for_stream,
+            app,
+            activity_state,
+            error_callback,
+        )?,
         other => {
             return Err(anyhow!("unsupported input sample format: {other:?}"));
         }
@@ -155,6 +189,35 @@ fn start_recording() -> Result<RecorderHandle> {
     })
 }
 
+fn choose_input_device(host: &cpal::Host, preferred_name: Option<&str>) -> Result<Device> {
+    if let Some(preferred_name) = preferred_name {
+        let preferred_name = preferred_name.trim();
+        if !preferred_name.is_empty() {
+            for device in host
+                .input_devices()
+                .context("failed to enumerate input devices")?
+            {
+                let matches_preference = device
+                    .name()
+                    .map(|name| name == preferred_name)
+                    .unwrap_or(false);
+                if matches_preference {
+                    return Ok(device);
+                }
+            }
+        }
+    }
+
+    host.default_input_device()
+        .ok_or_else(|| anyhow!("no microphone input device available"))
+}
+
+#[derive(Default)]
+struct RecordingActivityState {
+    is_speaking: bool,
+    silent_callbacks: u8,
+}
+
 impl RecorderController {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel::<RecorderCommand>();
@@ -164,11 +227,11 @@ impl RecorderController {
 
             while let Ok(command) = receiver.recv() {
                 match command {
-                    RecorderCommand::Start { respond_to } => {
+                    RecorderCommand::Start { app, respond_to } => {
                         let response = if recorder_handle.is_some() {
                             Err(anyhow!("recording is already active"))
                         } else {
-                            start_recording().map(|handle| {
+                            start_recording(app).map(|handle| {
                                 let details = RecordingDetails {
                                     device_name: handle.device_name.clone(),
                                     sample_rate: handle.sample_rate,
@@ -197,10 +260,10 @@ impl RecorderController {
         Self { sender }
     }
 
-    pub fn start(&self) -> Result<RecordingDetails> {
+    pub fn start(&self, app: AppHandle) -> Result<RecordingDetails> {
         let (respond_to, receiver) = mpsc::channel();
         self.sender
-            .send(RecorderCommand::Start { respond_to })
+            .send(RecorderCommand::Start { app, respond_to })
             .context("failed to send start command to recorder thread")?;
         receiver
             .recv()
@@ -265,6 +328,8 @@ fn build_stream<T>(
     device: &Device,
     config: &cpal::StreamConfig,
     writer: Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>,
+    app: AppHandle,
+    activity_state: Arc<Mutex<RecordingActivityState>>,
     error_callback: impl FnMut(cpal::StreamError) + Send + 'static,
 ) -> Result<Stream>
 where
@@ -276,9 +341,54 @@ where
         move |data: &[T], _: &cpal::InputCallbackInfo| {
             if let Ok(mut writer_guard) = writer.lock() {
                 if let Some(writer) = writer_guard.as_mut() {
+                    let mut sum_squares = 0.0_f32;
+                    let mut sample_count = 0_usize;
                     for &sample in data {
                         let value: i16 = i16::from_sample(sample);
                         let _ = writer.write_sample(value);
+                        let normalized = value as f32 / i16::MAX as f32;
+                        sum_squares += normalized * normalized;
+                        sample_count += 1;
+                    }
+
+                    if sample_count > 0 {
+                        let rms = (sum_squares / sample_count as f32).sqrt();
+                        let speaking_now = rms >= SPEECH_RMS_THRESHOLD;
+                        if let Ok(mut activity_guard) = activity_state.lock() {
+                            if speaking_now {
+                                activity_guard.silent_callbacks = 0;
+                                if !activity_guard.is_speaking {
+                                    activity_guard.is_speaking = true;
+                                    if let Ok(mut pill) =
+                                        app.state::<crate::app_state::AppState>().pill.lock()
+                                    {
+                                        pill.is_speaking = true;
+                                    }
+                                    let _ = app.emit(
+                                        RECORDING_ACTIVITY_EVENT,
+                                        RecordingActivityPayload { is_speaking: true },
+                                    );
+                                    desktop_ui::emit_recording_pill_update(&app);
+                                }
+                            } else if activity_guard.is_speaking {
+                                activity_guard.silent_callbacks =
+                                    activity_guard.silent_callbacks.saturating_add(1);
+                                if activity_guard.silent_callbacks >= SILENT_CALLBACKS_BEFORE_IDLE {
+                                    activity_guard.is_speaking = false;
+                                    activity_guard.silent_callbacks = 0;
+                                    if let Ok(mut pill) =
+                                        app.state::<crate::app_state::AppState>().pill.lock()
+                                    {
+                                        pill.is_speaking = false;
+                                    }
+                                    let _ = app.emit(
+                                        RECORDING_ACTIVITY_EVENT,
+                                        RecordingActivityPayload { is_speaking: false },
+                                    );
+                                    desktop_ui::emit_recording_pill_update(&app);
+                                }
+                            }
+                        }
                     }
                 }
             }

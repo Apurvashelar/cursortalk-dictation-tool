@@ -1,7 +1,10 @@
+import { useState } from "react";
+
 import type {
   AppConfig,
   AudioInputDevice,
   BackendHealth,
+  DictationLogEntry,
   PermissionStatusReport,
   SessionState,
   SttStatus,
@@ -17,181 +20,161 @@ type DiagnosticsPageProps = {
   permissionStatus: PermissionStatusReport;
   isCheckingHealth: boolean;
   refreshBackendHealth: () => void;
+  dictationLogEntries: DictationLogEntry[];
+  appVersion: string;
 };
 
-function statusLabel(status: BackendHealth["status"]) {
+function healthTone(status: "healthy" | "warning" | "error") {
   switch (status) {
     case "healthy":
-      return "Healthy";
-    case "degraded":
-      return "Degraded";
-    case "unreachable":
-      return "Unreachable";
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "warning":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "error":
+      return "border-amber-200 bg-amber-50 text-amber-700";
     default:
-      return "Unknown";
+      return "border-black/10 bg-transparent text-slate-600";
   }
 }
 
 export function DiagnosticsPage({
   selectedMode,
-  config,
   backendHealth,
   sessionState,
-  audioDevices,
   sttStatus,
   permissionStatus,
   isCheckingHealth,
   refreshBackendHealth,
+  dictationLogEntries,
+  appVersion,
 }: DiagnosticsPageProps) {
-  const defaultDevice = audioDevices.find((device) => device.is_default);
-  const cleanupResultValue =
-    sessionState.cleanup_model_version
-      ? `${sessionState.used_cleanup_fallback ? "Fallback" : sessionState.cleanup_source === "local" ? "Local" : "Remote"} • ${
-          sessionState.cleanup_model_version
-        } • ${sessionState.cleanup_latency_ms ?? 0} ms`
-      : sessionState.state === "transcribing" || sessionState.state === "cleaning"
-        ? "Pending"
-        : "Not available";
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const missingPermissions = [
+    permissionStatus.microphone.status !== "ready" ? "Microphone" : null,
+    permissionStatus.accessibility.status !== "ready" ? "Accessibility" : null,
+  ].filter(Boolean) as string[];
+
+  const healthCards = [
+    {
+      title: "STT engine",
+      status:
+        sttStatus.state === "ready"
+          ? ("healthy" as const)
+          : sttStatus.state === "planned"
+            ? ("warning" as const)
+            : ("error" as const),
+      value:
+        sttStatus.state === "ready"
+          ? "Healthy"
+          : sttStatus.state === "planned"
+            ? "Not loaded"
+            : "Error",
+      subtitle: `${sttStatus.engine} · native runtime`,
+    },
+    {
+      title: "Cleanup server",
+      status:
+        selectedMode === "local"
+          ? ("healthy" as const)
+          : backendHealth.status === "healthy"
+            ? ("healthy" as const)
+            : backendHealth.status === "degraded"
+              ? ("warning" as const)
+              : ("error" as const),
+      value:
+        selectedMode === "local"
+          ? "Running"
+          : backendHealth.status === "healthy"
+            ? "Running"
+            : backendHealth.status === "degraded"
+              ? "Starting..."
+              : "Unreachable",
+      subtitle:
+        selectedMode === "local"
+          ? "On-device cleanup runtime"
+          : `${backendHealth.healthUrl} · ${backendHealth.message}`,
+    },
+    {
+      title: "Memory",
+      status: "warning" as const,
+      value: "Unavailable",
+      subtitle:
+        selectedMode === "local"
+          ? "Process memory stats not wired yet"
+          : "Remote server memory is not reported yet",
+    },
+    {
+      title: "Permissions",
+      status: missingPermissions.length === 0 ? ("healthy" as const) : ("warning" as const),
+      value: missingPermissions.length === 0 ? "All granted" : `${missingPermissions.length} missing`,
+      subtitle: missingPermissions.length === 0 ? "Microphone and Accessibility ready" : missingPermissions.join(", "),
+    },
+  ];
+
+  async function copyDebugInfo() {
+    const lines = [
+      `App version: ${appVersion}`,
+      `Mode: ${selectedMode}`,
+      `OS: ${navigator.userAgent}`,
+      `Hotkey: ${sessionState.hotkey}`,
+      `STT engine: ${sttStatus.engine} (${sttStatus.state})`,
+      `Cleanup status: ${selectedMode === "local" ? "local runtime" : backendHealth.status}`,
+      `Microphone permission: ${permissionStatus.microphone.label}`,
+      `Accessibility permission: ${permissionStatus.accessibility.label}`,
+      `Backend health: ${backendHealth.message}`,
+      `Last output available: ${sessionState.final_output ? "yes" : "no"}`,
+      `Recent latencies: unavailable`,
+    ];
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setCopyState("copied");
+    } catch (error) {
+      console.error("Failed to copy debug info", error);
+      setCopyState("error");
+    } finally {
+      window.setTimeout(() => setCopyState("idle"), 1500);
+    }
+  }
 
   return (
-    <div className="page-shell">
-      <div className="page-header">
-        <div>
-          <p className="eyebrow">Diagnostics</p>
-          <h2>Support and pipeline detail</h2>
-          <p className="muted">
-            Technical details live here so the main surface can stay focused on dictation.
-          </p>
+    <div
+      className="space-y-10 pt-3"
+      style={{ fontFamily: '"IBM Plex Sans", "Inter", "Helvetica Neue", sans-serif' }}
+    >
+      <section className="flex flex-wrap justify-end gap-3 pt-2">
+        <div className="flex flex-wrap gap-3">
+          <button
+            className="rounded-xl border border-black/10 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:border-slate-950 hover:bg-slate-950 hover:text-white"
+            onClick={copyDebugInfo}
+            type="button"
+          >
+            {copyState === "copied" ? "Copied" : copyState === "error" ? "Copy failed" : "Copy debug info"}
+          </button>
+          <button
+            className="rounded-xl border border-slate-950 bg-slate-950 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-900"
+            onClick={refreshBackendHealth}
+            type="button"
+          >
+            {isCheckingHealth ? "Checking..." : "Refresh health"}
+          </button>
         </div>
-        <button className="secondary-button" onClick={refreshBackendHealth} type="button">
-          {isCheckingHealth ? "Checking..." : "Refresh health"}
-        </button>
-      </div>
+      </section>
 
-      <div className="stack">
-        <section className="card">
-          <h3>Pipeline status</h3>
-          <div className="field-grid">
-            <label className="field">
-              <span>Session state</span>
-              <input value={sessionState.state} readOnly />
-            </label>
-            <label className="field">
-              <span>Backend health</span>
-              <input value={statusLabel(backendHealth.status)} readOnly />
-            </label>
-            <label className="field">
-              <span>STT engine</span>
-              <input value={sttStatus.engine} readOnly />
-            </label>
-            <label className="field">
-              <span>STT state</span>
-              <input value={sttStatus.state} readOnly />
-            </label>
-          </div>
-        </section>
-
-        <section className="card">
-          <h3>Transcript detail</h3>
-          <div className="field-grid">
-            <label className="field">
-              <span>Raw transcript</span>
-              <textarea value={sessionState.raw_transcript ?? ""} readOnly />
-            </label>
-            <label className="field">
-              <span>Cleaned text</span>
-              <textarea value={sessionState.cleaned_text ?? ""} readOnly />
-            </label>
-          </div>
-          <div className="field-grid">
-            <label className="field">
-              <span>Final output</span>
-              <textarea value={sessionState.final_output ?? ""} readOnly />
-            </label>
-            <label className="field">
-              <span>Paste status</span>
-              <input value={sessionState.last_paste_message ?? "Not pasted yet"} readOnly />
-            </label>
-          </div>
-        </section>
-
-        <section className="card">
-          <h3>Backend detail</h3>
-          <div className="field-grid">
-            <label className="field">
-              <span>Runtime mode</span>
-              <input value={selectedMode === "local" ? "Local" : "Organization"} readOnly />
-            </label>
-            <label className="field">
-              <span>{selectedMode === "local" ? "Runtime target" : "Backend URL"}</span>
-              <input
-                value={
-                  selectedMode === "local"
-                    ? "Local cleanup runtime"
-                    : config?.cleanup_url ?? "http://127.0.0.1:8080/clean"
-                }
-                readOnly
-              />
-            </label>
-            <label className="field">
-              <span>{selectedMode === "local" ? "Connection detail" : "Health URL"}</span>
-              <input
-                value={
-                  selectedMode === "local"
-                    ? "Local mode does not use the organization backend."
-                    : config?.health_url ?? "http://127.0.0.1:8080/health"
-                }
-                readOnly
-              />
-            </label>
-            <label className="field">
-              <span>Cleanup result</span>
-              <input value={cleanupResultValue} readOnly />
-            </label>
-            <label className="field">
-              <span>Runtime message</span>
-              <input
-                value={selectedMode === "local" ? sessionState.message : backendHealth.message}
-                readOnly
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="card">
-          <h3>Environment detail</h3>
-          <div className="field-grid">
-            <label className="field">
-              <span>Default microphone</span>
-              <input value={defaultDevice?.name ?? "No input device detected"} readOnly />
-            </label>
-            <label className="field">
-              <span>Active input</span>
-              <input value={sessionState.input_device ?? "Not recording"} readOnly />
-            </label>
-            <label className="field">
-              <span>Recording path</span>
-              <input value={sessionState.last_recording_path ?? "Not available"} readOnly />
-            </label>
-            <label className="field">
-              <span>STT model dir</span>
-              <input value={config?.stt_model_dir ?? "Not configured"} readOnly />
-            </label>
-            <label className="field">
-              <span>Local cleanup runtime</span>
-              <input value="llama-server binary" readOnly />
-            </label>
-            <label className="field">
-              <span>Microphone permission</span>
-              <input value={permissionStatus.microphone.label} readOnly />
-            </label>
-            <label className="field">
-              <span>Accessibility permission</span>
-              <input value={permissionStatus.accessibility.label} readOnly />
-            </label>
-          </div>
-        </section>
-      </div>
+      <section className="grid gap-4 md:grid-cols-2">
+        {healthCards.map((card) => (
+          <article
+            className={`rounded-[24px] border p-5 ${healthTone(card.status)}`}
+            key={card.title}
+          >
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">{card.title}</p>
+            <p className="mt-3 text-2xl font-semibold tracking-[-0.04em]">
+              {card.value}
+            </p>
+            <p className="mt-2 text-sm text-slate-500">{card.subtitle}</p>
+          </article>
+        ))}
+      </section>
     </div>
   );
 }

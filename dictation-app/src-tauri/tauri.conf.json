@@ -10,8 +10,10 @@
     "devUrl": "http://localhost:1420"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "Enterprise Voice Dictation",
         "width": 1200,
         "height": 820,
@@ -25,6 +27,12 @@
   "bundle": {
     "active": true,
     "targets": ["app"],
-    "icon": []
+    "icon": ["icons/icon.png"],
+    "macOS": {
+      "files": {
+        "Frameworks/libonnxruntime.1.17.1.dylib": "target/debug/libonnxruntime.1.17.1.dylib",
+        "Frameworks/libsherpa-onnx-c-api.dylib": "target/debug/libsherpa-onnx-c-api.dylib"
+      }
+    }
   }
 }

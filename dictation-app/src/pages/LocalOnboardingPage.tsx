@@ -12,6 +12,7 @@ export type LocalOnboardingStage = "setup" | "test";
 
 type LocalOnboardingPageProps = {
   stage: LocalOnboardingStage;
+  hotkey: string;
   stepItems: string[];
   progressStepLabel: string;
   progressValue: number;
@@ -248,12 +249,14 @@ function SetupStage({
 }
 
 function TestStage({
+  hotkey,
   sessionState,
   isRecordingActionPending,
   onStartRecording,
   onStopRecording,
   onComplete,
 }: {
+  hotkey: string;
   sessionState: SessionState;
   isRecordingActionPending: boolean;
   onStartRecording: () => void;
@@ -288,6 +291,7 @@ function TestStage({
   const stopActionLabel = "Stop recording";
   const shouldShowStartAction = !isRecording && !isStoppingRecording && !isBusy;
   const shouldShowStopAction = isRecording || isStoppingRecording;
+  const hotkeyLabel = hotkeyTokens(hotkey).join(" + ");
 
   useEffect(() => {
     if (sessionState.state !== "idle") {
@@ -350,8 +354,8 @@ function TestStage({
             <p className="m-0 text-base text-slate-900">{finalOutput}</p>
           ) : (
             <p className="m-0 text-sm font-normal text-slate-400">
-              Hold {sessionState.hotkey} and say: “The quarterly report shows strong growth.”
-              Release to finish.
+              Hold {hotkeyLabel} and say: “The quarterly report shows strong growth.” Release to
+              finish.
             </p>
           )}
         </div>
@@ -435,7 +439,7 @@ function TestStage({
                 </h2>
                 <div className="mx-auto mt-5 inline-flex items-center gap-3 rounded-2xl border border-black/10 bg-slate-950/[0.035] px-4 py-3">
                   <span className="inline-flex items-center gap-1.5">
-                    {hotkeyTokens(sessionState.hotkey).map((token, index) => (
+                    {hotkeyTokens(hotkey).map((token, index) => (
                       <span className="inline-flex items-center gap-1.5" key={`${token}-${index}`}>
                         {index > 0 ? <span className="text-sm text-slate-400">+</span> : null}
                         <kbd className="min-w-8 rounded-lg border border-black/10 bg-white px-2 py-1 text-sm font-semibold text-slate-950 shadow-sm">
@@ -469,6 +473,7 @@ function TestStage({
 
 export function LocalOnboardingPage({
   stage,
+  hotkey,
   stepItems,
   progressStepLabel,
   progressValue,
@@ -505,6 +510,7 @@ export function LocalOnboardingPage({
         />
       ) : (
         <TestStage
+          hotkey={hotkey}
           sessionState={sessionState}
           isRecordingActionPending={isRecordingActionPending}
           onStartRecording={onStartRecording}

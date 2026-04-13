@@ -3,6 +3,7 @@ use std::{process::Child, sync::Mutex};
 use serde::Serialize;
 
 use crate::{
+    auth::AuthRuntime,
     cleanup::CleanupResult,
     config::AppConfig,
     paste::PasteResult,
@@ -35,8 +36,10 @@ pub struct SessionSnapshot {
 
 pub struct AppState {
     pub session: Mutex<SessionRuntime>,
+    pub auth: Mutex<AuthRuntime>,
     pub recorder: RecorderController,
     pub runtime: Mutex<RuntimeSettings>,
+    pub pill: Mutex<PillRuntime>,
     pub local_cleanup_server: Mutex<LocalCleanupServerState>,
 }
 
@@ -49,8 +52,15 @@ pub enum RuntimeMode {
 #[derive(Clone)]
 pub struct RuntimeSettings {
     pub mode: RuntimeMode,
+    pub hotkey: String,
     pub organization_base_url: Option<String>,
     pub dictation_test_mode: bool,
+    pub show_in_dock: bool,
+    pub overlay_position: String,
+    pub paste_raw_on_failure: bool,
+    pub start_sound_enabled: bool,
+    pub done_sound_enabled: bool,
+    pub preferred_audio_input: Option<String>,
 }
 
 pub struct LocalCleanupServerState {
@@ -59,8 +69,22 @@ pub struct LocalCleanupServerState {
     pub port: Option<u16>,
 }
 
+#[derive(Default)]
+pub struct PillRuntime {
+    pub is_speaking: bool,
+    pub recording_started_at_ms: Option<u64>,
+    pub terminal_state: Option<PillTerminalState>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum PillTerminalState {
+    Done,
+    Error,
+}
+
 pub struct SessionRuntime {
     pub status: SessionStatus,
+    pub hotkey: String,
     pub input_device: Option<String>,
     pub active_recording: Option<RecordingDetails>,
     pub last_recording: Option<RecordingSummary>,
@@ -84,6 +108,7 @@ impl Default for AppState {
         Self {
             session: Mutex::new(SessionRuntime {
                 status: SessionStatus::Idle,
+                hotkey: AppConfig::default().hotkey,
                 input_device: None,
                 active_recording: None,
                 last_recording: None,
@@ -92,12 +117,21 @@ impl Default for AppState {
                 paste: None,
                 last_error: None,
             }),
+            auth: Mutex::new(AuthRuntime::default()),
             recorder: RecorderController::new(),
             runtime: Mutex::new(RuntimeSettings {
                 mode: RuntimeMode::Organization,
+                hotkey: AppConfig::default().hotkey,
                 organization_base_url: None,
                 dictation_test_mode: false,
+                show_in_dock: false,
+                overlay_position: "default".to_string(),
+                paste_raw_on_failure: true,
+                start_sound_enabled: true,
+                done_sound_enabled: true,
+                preferred_audio_input: None,
             }),
+            pill: Mutex::new(PillRuntime::default()),
             local_cleanup_server: Mutex::new(LocalCleanupServerState {
                 child: None,
                 model_path: None,
@@ -109,8 +143,6 @@ impl Default for AppState {
 
 impl SessionRuntime {
     pub fn snapshot(&self) -> SessionSnapshot {
-        let config = AppConfig::default();
-
         let (state, message) = match self.status {
             SessionStatus::Idle => (
                 "idle".to_string(),
@@ -159,7 +191,7 @@ impl SessionRuntime {
         SessionSnapshot {
             state,
             message,
-            hotkey: config.hotkey,
+            hotkey: self.hotkey.clone(),
             input_device: self.input_device.clone(),
             last_recording_path: last_recording
                 .as_ref()

@@ -529,7 +529,7 @@ fn write_local_setup_metadata(
     Ok(())
 }
 
-fn default_storage_path() -> PathBuf {
+pub fn default_storage_path() -> PathBuf {
     let home_dir = env::var("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("."));

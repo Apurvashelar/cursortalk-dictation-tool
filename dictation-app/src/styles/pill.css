@@ -1,0 +1,134 @@
+.pill {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 16px;
+  border-radius: 24px;
+  border: 0.5px solid transparent;
+  background: transparent;
+  opacity: 1;
+  transition: opacity 300ms ease-out, background-color 160ms ease-out, border-color 160ms ease-out;
+  pointer-events: none;
+  user-select: none;
+}
+
+.pill--recording,
+.pill--error {
+  background: #fcebeb;
+  border-color: rgba(226, 75, 74, 0.25);
+}
+
+.pill--processing {
+  min-width: 104px;
+  background: #fff4e5;
+  border-color: rgba(239, 159, 39, 0.25);
+}
+
+.pill--done {
+  min-width: 78px;
+  background: #eafbef;
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+.pill--error {
+  min-width: 82px;
+}
+
+.pill--fade-out {
+  opacity: 0;
+}
+
+.pill-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e24b4a;
+  animation: pill-dot-pulse 1.2s ease-in-out infinite;
+  flex: 0 0 auto;
+}
+
+.pill-waveform {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+}
+
+.pill-bar {
+  width: 2.5px;
+  border-radius: 1.5px;
+  background: #e24b4a;
+  transition: height 150ms ease;
+}
+
+.pill-bar--flat {
+  height: 4px;
+  animation: none;
+}
+
+.pill-bar--wave {
+  height: 16px;
+  animation: pill-bar-bounce 0.5s ease-in-out infinite alternate;
+}
+
+.pill-bar:nth-child(1) { animation-delay: 0s; }
+.pill-bar:nth-child(2) { animation-delay: 0.08s; }
+.pill-bar:nth-child(3) { animation-delay: 0.16s; }
+.pill-bar:nth-child(4) { animation-delay: 0.12s; }
+.pill-bar:nth-child(5) { animation-delay: 0.04s; }
+.pill-bar:nth-child(6) { animation-delay: 0.2s; }
+.pill-bar:nth-child(7) { animation-delay: 0.1s; }
+
+.pill-timer {
+  color: #a32d2d;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: "IBM Plex Mono", "SFMono-Regular", ui-monospace, monospace;
+  line-height: 1;
+}
+
+.pill-text {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.pill-text--processing {
+  color: #ef9f27;
+}
+
+.pill-text--done {
+  color: #16a34a;
+}
+
+.pill-text--error {
+  color: #e24b4a;
+}
+
+.pill-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+@keyframes pill-dot-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes pill-bar-bounce {
+  from {
+    height: 4px;
+  }
+
+  to {
+    height: 16px;
+  }
+}

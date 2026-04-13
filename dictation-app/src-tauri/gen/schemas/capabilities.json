@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capability for the main desktop window.","local":true,"windows":["main"],"permissions":["core:default","dialog:default","opener:default","global-shortcut:default"]}}
+{"default":{"identifier":"default","description":"Default capability for the desktop windows.","local":true,"windows":["main","overlay"],"permissions":["core:default","dialog:default","opener:default","global-shortcut:default"]}}

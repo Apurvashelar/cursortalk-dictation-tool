@@ -56,6 +56,18 @@ pub fn open_permission_settings(permission: &str) -> Result<()> {
     }
 }
 
+pub fn accessibility_is_trusted() -> bool {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        CGPreflightPostEventAccess() || AXIsProcessTrusted()
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
 fn microphone_permission_state() -> PermissionState {
     match probe_microphone_access() {
         Ok(()) => PermissionState {
@@ -87,8 +99,8 @@ fn microphone_permission_state() -> PermissionState {
 
 fn accessibility_permission_state() -> PermissionState {
     #[cfg(target_os = "macos")]
-    unsafe {
-        if AXIsProcessTrusted() {
+    {
+        if accessibility_is_trusted() {
             PermissionState {
                 status: "ready".to_string(),
                 label: "Granted".to_string(),
@@ -98,8 +110,7 @@ fn accessibility_permission_state() -> PermissionState {
             PermissionState {
                 status: "needs_access".to_string(),
                 label: "Allow access".to_string(),
-                message: "Allow Accessibility access so Voice Dictation can paste into other apps."
-                    .to_string(),
+                message: accessibility_denied_message(),
             }
         }
     }
@@ -112,6 +123,12 @@ fn accessibility_permission_state() -> PermissionState {
             message: "Accessibility checks are only implemented on macOS.".to_string(),
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn accessibility_denied_message() -> String {
+    "Accessibility is not trusted for this exact app bundle. Re-add the final packaged app in System Settings, then relaunch it from that same bundle path."
+        .to_string()
 }
 
 fn probe_microphone_access() -> Result<()> {
@@ -198,4 +215,5 @@ fn looks_like_permission_error(message: &str) -> bool {
 #[link(name = "ApplicationServices", kind = "framework")]
 unsafe extern "C" {
     fn AXIsProcessTrusted() -> bool;
+    fn CGPreflightPostEventAccess() -> bool;
 }

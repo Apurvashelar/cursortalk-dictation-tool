@@ -29,13 +29,18 @@ export function PermissionPrompt({
 
   return (
     <div className="mx-auto mt-8 max-w-3xl rounded-[22px] border border-black/10 bg-black/[0.025] px-5 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-slate-950">Permissions needed</p>
-          <p className="mt-1 text-sm text-slate-500">Allow access to record and paste.</p>
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+            Permissions
+          </p>
+          <div className="mt-2 space-y-1.5 text-xs text-slate-700">
+            {microphoneNeedsAccess ? <p className="m-0">Microphone</p> : null}
+            {accessibilityNeedsAccess ? <p className="m-0">Accessibility</p> : null}
+          </div>
         </div>
         <button
-          className="text-sm font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-slate-950"
+          className="text-xs font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-slate-950"
           onClick={onRefreshPermissions}
           type="button"
         >
@@ -43,12 +48,12 @@ export function PermissionPrompt({
         </button>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="mt-4 space-y-2.5">
         {microphoneNeedsAccess ? (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/8 bg-white/64 px-4 py-3">
-            <span className="text-sm font-medium text-slate-800">Microphone</span>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/8 bg-white/64 px-4 py-2.5">
+            <span className="text-xs font-medium text-slate-800">Microphone</span>
             <button
-              className="text-sm font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-slate-950"
+              className="text-xs font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-slate-950"
               onClick={() => onOpenPermissionSettings("microphone")}
               type="button"
             >
@@ -58,10 +63,10 @@ export function PermissionPrompt({
         ) : null}
 
         {accessibilityNeedsAccess ? (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/8 bg-white/64 px-4 py-3">
-            <span className="text-sm font-medium text-slate-800">Accessibility</span>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-black/8 bg-white/64 px-4 py-2.5">
+            <span className="text-xs font-medium text-slate-800">Accessibility</span>
             <button
-              className="text-sm font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-slate-950"
+              className="text-xs font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-slate-950"
               onClick={() => onOpenPermissionSettings("accessibility")}
               type="button"
             >

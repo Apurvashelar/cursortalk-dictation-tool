@@ -5,11 +5,37 @@ export type BackendHealth = {
   message: string;
 };
 
+export type AuthUser = {
+  first_name: string;
+  last_name: string;
+  email: string;
+};
+
+export type AuthState = {
+  state: "signed_out" | "signed_in";
+  is_authenticated: boolean;
+  message: string;
+  auth_base_url: string | null;
+  organization_id: string | null;
+  organization_name: string | null;
+  user: AuthUser | null;
+};
+
 export const defaultBackendHealth: BackendHealth = {
   status: "unknown",
   endpoint: "http://127.0.0.1:8080/clean",
   healthUrl: "http://127.0.0.1:8080/health",
   message: "Health has not been checked yet.",
+};
+
+export const defaultAuthState: AuthState = {
+  state: "signed_out",
+  is_authenticated: false,
+  message: "Not signed in.",
+  auth_base_url: null,
+  organization_id: null,
+  organization_name: null,
+  user: null,
 };
 
 export type AppConfig = {
@@ -80,4 +106,27 @@ export type PermissionState = {
 export type PermissionStatusReport = {
   microphone: PermissionState;
   accessibility: PermissionState;
+};
+
+export type DictationLogEntry = {
+  timestamp_ms: number;
+  mode: "local" | "organization";
+  raw_transcript: string | null;
+  cleaned_output: string | null;
+  final_output: string;
+  word_count: number;
+  stt_latency_ms: number | null;
+  cleanup_latency_ms: number | null;
+  total_latency_ms: number | null;
+  status: "success" | "fallback" | "error";
+  cleanup_source: string | null;
+  cleanup_model_version: string | null;
+  error_message: string | null;
+};
+
+export type DictationLogSummary = {
+  dictations: number;
+  words: number;
+  average_latency_ms: number | null;
+  recent_entries: DictationLogEntry[];
 };
