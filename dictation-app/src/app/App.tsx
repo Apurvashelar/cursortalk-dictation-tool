@@ -48,6 +48,7 @@ const LOCAL_SETUP_PROGRESS_EVENT = "local-setup-progress";
 const TRAY_NAVIGATE_EVENT = "tray-navigate";
 const AUTH_EVENT = "auth-state-changed";
 const APP_VERSION = "0.1.0";
+const STAGING_AUTH_BASE_URL = "https://staging-api.cursortalk.com";
 const localPreflightSteps = [
   "Checking local setup",
   "Looking for speech model",
@@ -322,6 +323,7 @@ export function App() {
   });
   const [authState, setAuthState] = useState<AuthState>(defaultAuthState);
   const [authEntryPoint, setAuthEntryPoint] = useState<"onboarding" | "settings">("onboarding");
+  const [postAuthStep, setPostAuthStep] = useState<"mode" | "organization_setup">("mode");
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<"local" | "organization">(() => {
@@ -356,12 +358,10 @@ export function App() {
   const [localSetupAwaitingPermissions, setLocalSetupAwaitingPermissions] = useState(false);
   const [organizationBaseUrl, setOrganizationBaseUrl] = useState(() => {
     if (typeof window === "undefined") {
-      return "http://127.0.0.1:8080";
+      return "";
     }
 
-    return (
-      window.localStorage.getItem(ORGANIZATION_BASE_URL_KEY) ?? "http://127.0.0.1:8080"
-    );
+    return window.localStorage.getItem(ORGANIZATION_BASE_URL_KEY) ?? "";
   });
   const [organizationApiKey, setOrganizationApiKey] = useState(() => {
     if (typeof window === "undefined") {
@@ -384,6 +384,7 @@ export function App() {
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const previousSessionStateRef = useRef<SessionState["state"]>(defaultSessionState.state);
   const onboardingPermissionPromptRef = useRef<string | null>(null);
+  const hasOrganizationAccess = Boolean(authState.organization_id);
 
   function normalizeBaseUrl(baseUrl: string) {
     return baseUrl.trim().replace(/\/$/, "");
@@ -397,6 +398,10 @@ export function App() {
   function buildHealthUrl(baseUrl: string) {
     const normalized = normalizeBaseUrl(baseUrl);
     return normalized ? `${normalized}/health` : "";
+  }
+
+  function resolveAuthBaseUrlForClient() {
+    return authState.auth_base_url ?? STAGING_AUTH_BASE_URL;
   }
 
   async function loadConfig() {
@@ -417,7 +422,7 @@ export function App() {
 
   async function refreshAuthState() {
     const nextState = await invoke<AuthState>("refresh_auth_state", {
-      authBaseUrl: normalizeBaseUrl(organizationBaseUrl) || null,
+      authBaseUrl: resolveAuthBaseUrlForClient(),
     });
     setAuthState(nextState);
     return nextState;
@@ -598,6 +603,15 @@ export function App() {
     // The initial check should run once after the shell mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (selectedMode !== "organization" || hasOrganizationAccess) {
+      return;
+    }
+
+    setSelectedMode("local");
+    window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+  }, [hasOrganizationAccess, selectedMode]);
 
   useEffect(() => {
     void invoke("set_runtime_mode", {
@@ -1050,6 +1064,14 @@ export function App() {
   }
 
   async function completeOrganizationOnboarding() {
+    if (!hasOrganizationAccess) {
+      setAuthEntryPoint(organizationSetupEntryPoint);
+      setPostAuthStep("organization_setup");
+      setAuthError("Sign in with an organization account before finishing organization setup.");
+      setOnboardingStep("auth");
+      return;
+    }
+
     setSelectedMode("organization");
     await invoke("set_dictation_test_mode", { enabled: false }).catch((error) => {
       console.error("Failed to disable organization test mode", error);
@@ -1088,6 +1110,14 @@ export function App() {
       return;
     }
 
+    if (!hasOrganizationAccess) {
+      setAuthEntryPoint("settings");
+      setPostAuthStep("organization_setup");
+      setAuthError("Sign in with an organization account before enabling organization mode.");
+      setOnboardingStep("auth");
+      return;
+    }
+
     const hasUsableOrganizationConfig =
       Boolean(normalizeBaseUrl(organizationBaseUrl)) &&
       (organizationSetupStatus === "healthy" || organizationSetupStatus === "degraded");
@@ -1102,6 +1132,7 @@ export function App() {
 
   function skipAuthentication() {
     setAuthError(null);
+    setPostAuthStep("mode");
     if (authEntryPoint === "settings") {
       setOnboardingStep(null);
       return;
@@ -1111,6 +1142,7 @@ export function App() {
 
   function openAuthenticationFromSettings() {
     setAuthEntryPoint("settings");
+    setPostAuthStep("mode");
     setAuthError(null);
     setIsAccountMenuOpen(false);
     setOnboardingStep("auth");
@@ -1124,17 +1156,27 @@ export function App() {
       const nextState = await invoke<AuthState>("sign_in", {
         email: input.email,
         password: input.password,
-        authBaseUrl: normalizeBaseUrl(organizationBaseUrl) || null,
+        authBaseUrl: resolveAuthBaseUrlForClient(),
       });
       setAuthState(nextState);
 
-      if (authEntryPoint === "settings") {
+      if (postAuthStep === "organization_setup") {
+        if (nextState.organization_id) {
+          setAuthError(null);
+          setOrganizationSetupEntryPoint(authEntryPoint);
+          setOnboardingStep("organization_setup");
+        } else {
+          setAuthError("This account is not attached to an organization. Sign in with an organization account to continue.");
+          return;
+        }
+      } else if (authEntryPoint === "settings") {
         setOnboardingStep(null);
         setCurrentPage("settings");
         setSettingsSection("account");
       } else {
         setOnboardingStep("mode");
       }
+      setPostAuthStep("mode");
     } catch (error) {
       setAuthError(String(error));
     } finally {
@@ -1150,17 +1192,27 @@ export function App() {
       const nextState = await invoke<AuthState>("sign_up", {
         email: input.email,
         password: input.password,
-        authBaseUrl: normalizeBaseUrl(organizationBaseUrl) || null,
+        authBaseUrl: resolveAuthBaseUrlForClient(),
       });
       setAuthState(nextState);
 
-      if (authEntryPoint === "settings") {
+      if (postAuthStep === "organization_setup") {
+        if (nextState.organization_id) {
+          setAuthError(null);
+          setOrganizationSetupEntryPoint(authEntryPoint);
+          setOnboardingStep("organization_setup");
+        } else {
+          setAuthError("This account was created, but it is not attached to an organization yet.");
+          return;
+        }
+      } else if (authEntryPoint === "settings") {
         setOnboardingStep(null);
         setCurrentPage("settings");
         setSettingsSection("account");
       } else {
         setOnboardingStep("mode");
       }
+      setPostAuthStep("mode");
     } catch (error) {
       setAuthError(String(error));
     } finally {
@@ -1237,6 +1289,7 @@ export function App() {
           step={onboardingStep}
           onContinue={() => {
             setAuthEntryPoint("onboarding");
+            setPostAuthStep("mode");
             setAuthError(null);
             setOnboardingStep("auth");
           }}
@@ -1244,6 +1297,12 @@ export function App() {
           onChooseMode={(mode) => {
             if (mode === "local") {
               beginLocalOnboarding();
+            } else if (!hasOrganizationAccess) {
+              setSelectedMode("organization");
+              setAuthEntryPoint("onboarding");
+              setPostAuthStep("organization_setup");
+              setAuthError("Sign in with an organization account before configuring organization mode.");
+              setOnboardingStep("auth");
             } else {
               setOrganizationSetupEntryPoint("onboarding");
               setSelectedMode("organization");

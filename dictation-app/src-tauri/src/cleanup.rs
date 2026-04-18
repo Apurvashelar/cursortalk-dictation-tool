@@ -91,11 +91,21 @@ struct LocalUsage {
     total_tokens: Option<u64>,
 }
 
-pub async fn clean_text(cleanup_url: &str, raw_text: &str) -> Result<CleanupResult> {
+pub async fn clean_text(
+    cleanup_url: &str,
+    raw_text: &str,
+    access_token: Option<&str>,
+) -> Result<CleanupResult> {
     let client = reqwest::Client::new();
-    let response = client
+    let mut request = client
         .post(cleanup_url)
-        .json(&RemoteCleanupRequest { raw: raw_text })
+        .json(&RemoteCleanupRequest { raw: raw_text });
+
+    if let Some(token) = access_token.filter(|value| !value.trim().is_empty()) {
+        request = request.bearer_auth(token);
+    }
+
+    let response = request
         .send()
         .await
         .context("failed to reach cleanup backend")?;

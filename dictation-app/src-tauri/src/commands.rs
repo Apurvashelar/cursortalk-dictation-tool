@@ -727,11 +727,38 @@ async fn stop_recording_internal(
             }
         }
         RuntimeMode::Organization => {
+            let auth_session = state
+                .auth
+                .lock()
+                .map_err(|_| "failed to lock auth state".to_string())?
+                .session
+                .clone();
+
+            let Some(auth_session) = auth_session else {
+                return Err(
+                    "Sign in with your organization account before using organization mode."
+                        .to_string(),
+                );
+            };
+
+            if auth_session.organization_id.is_none() {
+                return Err(
+                    "This account is not attached to an organization yet. Sign in with an organization account to continue."
+                        .to_string(),
+                );
+            }
+
             let cleanup_url = organization_base_url
                 .map(|base_url| format!("{base_url}/clean"))
                 .unwrap_or_else(|| config.cleanup_url.clone());
 
-            match cleanup::clean_text(&cleanup_url, &raw_transcript).await {
+            match cleanup::clean_text(
+                &cleanup_url,
+                &raw_transcript,
+                Some(auth_session.access_token.as_str()),
+            )
+            .await
+            {
                 Ok(result) => result,
                 Err(error) if allow_raw_fallback => {
                     cleanup::fallback_from_raw(&raw_transcript, &error.to_string())

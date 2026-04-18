@@ -890,7 +890,7 @@ export function SettingsPage({
                     className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25 disabled:bg-slate-100"
                     disabled={selectedMode === "local"}
                     onChange={(event) => onOrganizationBaseUrlChange(event.target.value)}
-                    placeholder="http://127.0.0.1:8080"
+                    placeholder="https://staging-api.cursortalk.com"
                     type="text"
                     value={organizationBaseUrl ?? ""}
                   />
@@ -902,7 +902,7 @@ export function SettingsPage({
                     className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25 disabled:bg-slate-100"
                     disabled={selectedMode === "local"}
                     onChange={(event) => onOrganizationApiKeyChange(event.target.value)}
-                    placeholder="Optional for current EC2 tunnel flow"
+                    placeholder="Enter your organization access key if one was provided"
                     type="password"
                     value={organizationApiKey}
                   />

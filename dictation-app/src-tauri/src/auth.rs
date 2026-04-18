@@ -104,7 +104,18 @@ impl AuthRuntime {
             Some(session) => AuthStateSnapshot {
                 state: "signed_in".to_string(),
                 is_authenticated: true,
-                message: format!("Signed in as {}.", session.user.display_name()),
+                message: if let Some(organization_name) = session.organization_name.as_ref() {
+                    format!(
+                        "Signed in as {}. Organization: {}.",
+                        session.user.display_name(),
+                        organization_name
+                    )
+                } else {
+                    format!(
+                        "Signed in as {}. This account is not attached to an organization yet.",
+                        session.user.display_name()
+                    )
+                },
                 auth_base_url: session.auth_base_url.clone(),
                 organization_id: session.organization_id.clone(),
                 organization_name: session.organization_name.clone(),
@@ -349,7 +360,28 @@ fn endpoint(base_url: &str, path: &str) -> String {
 
 fn response_error(response: Response) -> String {
     let status = response.status();
-    let fallback = format!("Auth request failed with status {}.", status.as_u16());
+    let fallback = match status {
+        StatusCode::BAD_REQUEST => {
+            "The request could not be completed. Please check the information and try again."
+                .to_string()
+        }
+        StatusCode::UNAUTHORIZED => "Email or password is incorrect.".to_string(),
+        StatusCode::FORBIDDEN => {
+            "Your account does not have permission to perform that action.".to_string()
+        }
+        StatusCode::CONFLICT => {
+            "That email address is already in use. Try signing in instead.".to_string()
+        }
+        StatusCode::NOT_FOUND => "The requested account resource could not be found.".to_string(),
+        StatusCode::TOO_MANY_REQUESTS => {
+            "Too many attempts were made. Please wait a moment and try again.".to_string()
+        }
+        status if status.is_server_error() => {
+            "The CursorTalk authentication service is having trouble right now. Please try again in a moment."
+                .to_string()
+        }
+        _ => "The authentication request could not be completed. Please try again.".to_string(),
+    };
 
     match response.json::<ErrorEnvelope>() {
         Ok(payload) => payload
@@ -361,13 +393,47 @@ fn response_error(response: Response) -> String {
     }
 }
 
+fn friendly_network_error(action: &str, error: &reqwest::Error) -> String {
+    if error.is_timeout() || error.is_connect() {
+        return format!(
+            "We couldn't reach the CursorTalk authentication service for {action}. Check your internet connection and try again."
+        );
+    }
+
+    if error.is_request() {
+        return format!(
+            "We couldn't send the {action} request. Please try again."
+        );
+    }
+
+    format!(
+        "The CursorTalk authentication service could not complete {action}. Please try again."
+    )
+}
+
+fn friendly_auth_error(_action: &str, error: anyhow::Error) -> anyhow::Error {
+    let message = error.to_string();
+
+    if message.contains("No auth service URL is configured") {
+        return anyhow!(
+            "CursorTalk could not find the authentication service URL. Try again in a moment or contact support if the problem continues."
+        );
+    }
+
+    if message.contains("AUTH_UNAUTHORIZED") {
+        return anyhow!("Your session has expired. Sign in again to continue.");
+    }
+
+    anyhow!("{message}")
+}
+
 fn fetch_profile(base_url: &str, access_token: &str) -> Result<AuthEnvelope> {
     let client = http_client()?;
     let response = client
         .get(endpoint(base_url, "/auth/me"))
         .bearer_auth(access_token)
         .send()
-        .context("failed to reach the auth service")?;
+        .map_err(|error| anyhow!(friendly_network_error("session refresh", &error)))?;
 
     if response.status() == StatusCode::UNAUTHORIZED || response.status() == StatusCode::FORBIDDEN {
         return Err(anyhow!("AUTH_UNAUTHORIZED"));
@@ -447,7 +513,7 @@ pub fn sign_in(
             password: password.as_str(),
         })
         .send()
-        .context("failed to reach the auth service")?;
+        .map_err(|error| anyhow!(friendly_network_error("sign-in", &error)))?;
 
     if !response.status().is_success() {
         return Err(anyhow!(response_error(response)));
@@ -469,7 +535,7 @@ pub fn sign_in(
     };
 
     let session = session_from_envelope(&base_url, profile_payload, access_token, refresh_token)?;
-    set_runtime_session(app, Some(session))
+    set_runtime_session(app, Some(session)).map_err(|error| friendly_auth_error("sign-in", error))
 }
 
 pub fn sign_up(
@@ -487,7 +553,7 @@ pub fn sign_up(
             password: password.as_str(),
         })
         .send()
-        .context("failed to reach the auth service")?;
+        .map_err(|error| anyhow!(friendly_network_error("account creation", &error)))?;
 
     if !response.status().is_success() {
         return Err(anyhow!(response_error(response)));
@@ -510,6 +576,7 @@ pub fn sign_up(
 
     let session = session_from_envelope(&base_url, profile_payload, access_token, refresh_token)?;
     set_runtime_session(app, Some(session))
+        .map_err(|error| friendly_auth_error("account creation", error))
 }
 
 pub fn refresh_auth_state(
@@ -554,7 +621,7 @@ pub fn refresh_auth_state(
             if error.to_string() == "AUTH_UNAUTHORIZED" {
                 return set_runtime_session(app, None);
             }
-            return Err(error);
+            return Err(friendly_auth_error("session refresh", error));
         }
     };
 
@@ -564,7 +631,7 @@ pub fn refresh_auth_state(
         Some(existing_session.access_token),
         existing_session.refresh_token,
     )?;
-    set_runtime_session(app, Some(session))
+    set_runtime_session(app, Some(session)).map_err(|error| friendly_auth_error("session refresh", error))
 }
 
 pub fn update_profile(
@@ -601,7 +668,7 @@ pub fn update_profile(
             last_name: last_name.trim(),
         })
         .send()
-        .context("failed to reach the auth service")?;
+        .map_err(|error| anyhow!(friendly_network_error("profile update", &error)))?;
 
     if !response.status().is_success() {
         return Err(anyhow!(response_error(response)));
@@ -617,6 +684,7 @@ pub fn update_profile(
         existing_session.refresh_token,
     )?;
     set_runtime_session(app, Some(session))
+        .map_err(|error| friendly_auth_error("profile update", error))
 }
 
 pub fn sign_out(app: &AppHandle) -> Result<AuthStateSnapshot> {
@@ -640,7 +708,7 @@ pub fn sign_out(app: &AppHandle) -> Result<AuthStateSnapshot> {
         }
     }
 
-    set_runtime_session(app, None)
+    set_runtime_session(app, None).map_err(|error| friendly_auth_error("sign-out", error))
 }
 
 pub fn delete_account(app: &AppHandle) -> Result<AuthStateSnapshot> {
@@ -667,13 +735,13 @@ pub fn delete_account(app: &AppHandle) -> Result<AuthStateSnapshot> {
         .delete(endpoint(&base_url, "/auth/me"))
         .bearer_auth(&existing_session.access_token)
         .send()
-        .context("failed to reach the auth service")?;
+        .map_err(|error| anyhow!(friendly_network_error("account deletion", &error)))?;
 
     if response.status() != StatusCode::NO_CONTENT && !response.status().is_success() {
         return Err(anyhow!(response_error(response)));
     }
 
-    set_runtime_session(app, None)
+    set_runtime_session(app, None).map_err(|error| friendly_auth_error("account deletion", error))
 }
 
 pub fn get_auth_state(state: &Mutex<AuthRuntime>) -> Result<AuthStateSnapshot> {

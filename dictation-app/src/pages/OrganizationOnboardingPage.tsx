@@ -187,7 +187,7 @@ export function OrganizationOnboardingPage({
                       <input
                         className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25"
                         onChange={(event) => onBaseUrlChange(event.target.value)}
-                        placeholder="http://127.0.0.1:8080"
+                        placeholder="https://staging-api.cursortalk.com"
                         type="text"
                         value={baseUrl}
                       />
@@ -200,7 +200,7 @@ export function OrganizationOnboardingPage({
                       <input
                         className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25"
                         onChange={(event) => onApiKeyChange(event.target.value)}
-                        placeholder="Optional for current tunnel setup"
+                        placeholder="Enter your organization access key if one was provided"
                         type="password"
                         value={apiKey}
                       />
@@ -222,8 +222,8 @@ export function OrganizationOnboardingPage({
                         ? "Checking connection..."
                         : status === "degraded"
                           ? "Connected, but the server returned a warning."
-                          : status === "unreachable"
-                            ? "Could not connect. Check your server URL or tunnel."
+                        : status === "unreachable"
+                            ? "Could not connect. Check your server URL and try again."
                             : statusMessage}
                   </p>
                 </div>
