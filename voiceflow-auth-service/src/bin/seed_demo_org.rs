@@ -117,12 +117,14 @@ async fn ensure_user(
 
         sqlx::query(
             "UPDATE users
-             SET first_name = $1,
-                 last_name = $2,
-                 organization_id = $3,
+             SET password_hash = $1,
+                 first_name = $2,
+                 last_name = $3,
+                 organization_id = $4,
                  updated_at = NOW()
-             WHERE id = $4",
+             WHERE id = $5",
         )
+        .bind(&password_hash)
         .bind(first_name)
         .bind(last_name)
         .bind(org_id)

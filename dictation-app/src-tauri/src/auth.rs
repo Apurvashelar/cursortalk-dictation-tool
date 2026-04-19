@@ -15,7 +15,8 @@ use crate::local_setup;
 
 const AUTH_SESSION_FILE_NAME: &str = "auth-session.json";
 const AUTH_BASE_URL_ENV: &str = "VOICEFLOW_AUTH_BASE_URL";
-const AUTH_KEYRING_SERVICE: &str = "com.voiceflow.desktop.auth";
+const AUTH_KEYRING_SERVICE: &str = "com.cursortalk.desktop.auth";
+const LEGACY_AUTH_KEYRING_SERVICE: &str = "com.voiceflow.desktop.auth";
 const AUTH_KEYRING_USER: &str = "current-session";
 pub const AUTH_EVENT: &str = "auth-state-changed";
 
@@ -235,6 +236,15 @@ fn keyring_entry() -> Result<Entry> {
         .context("failed to access OS credential store")
 }
 
+fn legacy_keyring_entry() -> Result<Entry> {
+    Entry::new(LEGACY_AUTH_KEYRING_SERVICE, AUTH_KEYRING_USER)
+        .context("failed to access OS credential store")
+}
+
+fn is_missing_credential_error(error: &keyring::Error) -> bool {
+    error.to_string().to_lowercase().contains("no entry")
+}
+
 fn normalize_base_url(base_url: &str) -> Option<String> {
     let normalized = base_url.trim().trim_end_matches('/').to_string();
     if normalized.is_empty() {
@@ -282,9 +292,17 @@ fn load_persisted_session() -> Result<Option<PersistedAuthSession>> {
     let metadata: PersistedAuthSessionMetadata =
         serde_json::from_str(&contents).context("failed to deserialize persisted auth session")?;
 
-    let entry = keyring_entry()?;
-    let secret_json = match entry.get_password() {
+    let secret_json = match keyring_entry()?.get_password() {
         Ok(value) => value,
+        Err(error) if is_missing_credential_error(&error) => match legacy_keyring_entry()?.get_password() {
+            Ok(value) => value,
+            Err(legacy_error) => {
+                let _ = fs::remove_file(&path);
+                return Err(anyhow!(
+                    "failed to read the auth token from secure storage: {legacy_error}"
+                ));
+            }
+        },
         Err(error) => {
             let _ = fs::remove_file(&path);
             return Err(anyhow!(
@@ -311,6 +329,20 @@ fn persist_session(session: &PersistedAuthSession) -> Result<()> {
     fs::create_dir_all(&storage_path)
         .with_context(|| format!("failed to create {}", storage_path.display()))?;
 
+    let secret_json = serde_json::to_string(&SecretSessionMaterial {
+        access_token: session.access_token.clone(),
+        refresh_token: session.refresh_token.clone(),
+    })
+    .context("failed to serialize secure auth session material")?;
+
+    keyring_entry()?
+        .set_password(&secret_json)
+        .context("failed to store auth token in secure storage")?;
+
+    if let Ok(entry) = legacy_keyring_entry() {
+        let _ = entry.delete_credential();
+    }
+
     let metadata = PersistedAuthSessionMetadata {
         user: session.user.clone(),
         auth_base_url: session.auth_base_url.clone(),
@@ -321,16 +353,6 @@ fn persist_session(session: &PersistedAuthSession) -> Result<()> {
         .context("failed to serialize auth session metadata")?;
     let path = session_path();
     fs::write(&path, json).with_context(|| format!("failed to write {}", path.display()))?;
-
-    let secret_json = serde_json::to_string(&SecretSessionMaterial {
-        access_token: session.access_token.clone(),
-        refresh_token: session.refresh_token.clone(),
-    })
-    .context("failed to serialize secure auth session material")?;
-
-    keyring_entry()?
-        .set_password(&secret_json)
-        .context("failed to store auth token in secure storage")?;
     Ok(())
 }
 
@@ -339,15 +361,15 @@ fn clear_persisted_session() -> Result<()> {
     if path.exists() {
         fs::remove_file(&path).with_context(|| format!("failed to remove {}", path.display()))?;
     }
-    let entry = keyring_entry()?;
-    match entry.delete_credential() {
-        Ok(_) => {}
-        Err(error) => {
-            let message = error.to_string();
-            if !message.to_lowercase().contains("no entry") {
-                return Err(anyhow!(
-                    "failed to clear auth token from secure storage: {error}"
-                ));
+    for entry in [keyring_entry()?, legacy_keyring_entry()?] {
+        match entry.delete_credential() {
+            Ok(_) => {}
+            Err(error) => {
+                if !is_missing_credential_error(&error) {
+                    return Err(anyhow!(
+                        "failed to clear auth token from secure storage: {error}"
+                    ));
+                }
             }
         }
     }
@@ -365,7 +387,10 @@ fn response_error(response: Response) -> String {
             "The request could not be completed. Please check the information and try again."
                 .to_string()
         }
-        StatusCode::UNAUTHORIZED => "Email or password is incorrect.".to_string(),
+        StatusCode::UNAUTHORIZED => {
+            "We couldn't sign you in with those details. Check your email and password and try again."
+                .to_string()
+        }
         StatusCode::FORBIDDEN => {
             "Your account does not have permission to perform that action.".to_string()
         }
@@ -382,6 +407,10 @@ fn response_error(response: Response) -> String {
         }
         _ => "The authentication request could not be completed. Please try again.".to_string(),
     };
+
+    if status == StatusCode::UNAUTHORIZED {
+        return fallback;
+    }
 
     match response.json::<ErrorEnvelope>() {
         Ok(payload) => payload
@@ -490,7 +519,13 @@ fn set_runtime_session(
     };
 
     match next_session {
-        Some(session) => persist_session(&session)?,
+        Some(session) => {
+            if let Err(error) = persist_session(&session) {
+                let path = session_path();
+                let _ = fs::remove_file(&path);
+                eprintln!("failed to persist auth session securely; continuing with in-memory session only: {error}");
+            }
+        }
         None => clear_persisted_session()?,
     }
 

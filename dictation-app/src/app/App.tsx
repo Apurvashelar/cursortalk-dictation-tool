@@ -1166,8 +1166,10 @@ export function App() {
           setOrganizationSetupEntryPoint(authEntryPoint);
           setOnboardingStep("organization_setup");
         } else {
-          setAuthError("This account is not attached to an organization. Sign in with an organization account to continue.");
-          return;
+          setAuthError(null);
+          setSelectedMode("local");
+          window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+          setOnboardingStep("mode");
         }
       } else if (authEntryPoint === "settings") {
         setOnboardingStep(null);
@@ -1202,8 +1204,10 @@ export function App() {
           setOrganizationSetupEntryPoint(authEntryPoint);
           setOnboardingStep("organization_setup");
         } else {
-          setAuthError("This account was created, but it is not attached to an organization yet.");
-          return;
+          setAuthError(null);
+          setSelectedMode("local");
+          window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+          setOnboardingStep("mode");
         }
       } else if (authEntryPoint === "settings") {
         setOnboardingStep(null);

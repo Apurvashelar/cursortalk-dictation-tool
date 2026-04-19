@@ -23,7 +23,12 @@ const STT_DOWNLOAD_URL: &str =
 const STT_ARCHIVE_FILE_NAME: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2";
 const STT_ARCHIVE_ROOT_DIR: &str = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8";
 const CLEANUP_MODEL_FILE_NAME: &str = "dictation-cleanup-q4km.gguf";
-const CLEANUP_DOWNLOAD_URL_ENV: &str = "VOICEFLOW_LOCAL_CLEANUP_MODEL_URL";
+const DEFAULT_CLEANUP_DOWNLOAD_URL: &str =
+    "https://github.com/Apurvashelar/cursortalk-dictation-tool/releases/download/local-models/dictation-cleanup-q4km.gguf";
+const CLEANUP_DOWNLOAD_URL_ENV: &str = "CURSORTALK_LOCAL_CLEANUP_MODEL_URL";
+const LEGACY_CLEANUP_DOWNLOAD_URL_ENV: &str = "VOICEFLOW_LOCAL_CLEANUP_MODEL_URL";
+const STORAGE_DIR_NAME: &str = "CursorTalk";
+const LEGACY_STORAGE_DIR_NAME: &str = "VoiceFlow Desktop";
 
 #[derive(Clone, Serialize)]
 pub struct LocalSetupStatus {
@@ -534,10 +539,25 @@ pub fn default_storage_path() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("."));
 
-    home_dir
+    let application_support_dir = home_dir
         .join("Library")
-        .join("Application Support")
-        .join("VoiceFlow Desktop")
+        .join("Application Support");
+    let storage_path = application_support_dir.join(STORAGE_DIR_NAME);
+    let legacy_storage_path = application_support_dir.join(LEGACY_STORAGE_DIR_NAME);
+
+    if storage_path.exists() {
+        return storage_path;
+    }
+
+    if legacy_storage_path.exists() {
+        if fs::rename(&legacy_storage_path, &storage_path).is_ok() && storage_path.exists() {
+            return storage_path;
+        }
+
+        return legacy_storage_path;
+    }
+
+    storage_path
 }
 
 fn required_stt_files_exist(dir: &Path) -> bool {
@@ -609,6 +629,13 @@ fn cleanup_download_url() -> Option<String> {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+        .or_else(|| {
+            env::var(LEGACY_CLEANUP_DOWNLOAD_URL_ENV)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .or_else(|| Some(DEFAULT_CLEANUP_DOWNLOAD_URL.to_string()))
 }
 
 fn emit_progress(app: &AppHandle, step: &str, message: &str) -> Result<()> {

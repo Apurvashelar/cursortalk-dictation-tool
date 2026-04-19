@@ -1,3 +1,5 @@
+use std::{env, path::PathBuf};
+
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -16,6 +18,18 @@ pub struct AppConfig {
 
 impl Default for AppConfig {
     fn default() -> Self {
+        let home_dir = env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."));
+        let stt_model_dir = home_dir
+            .join("Library")
+            .join("Application Support")
+            .join("CursorTalk")
+            .join("models")
+            .join("stt")
+            .display()
+            .to_string();
+
         Self {
             mode: "organization".to_string(),
             personal_mode_enabled: false,
@@ -26,8 +40,7 @@ impl Default for AppConfig {
             tunnel_host: "AWS EC2".to_string(),
             tunnel_local_port: 8080,
             tunnel_remote_port: 8080,
-            stt_model_dir: "/Users/appe/parakeet/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
-                .to_string(),
+            stt_model_dir,
         }
     }
 }

@@ -1,4 +1,4 @@
-import { ArrowLeft, LoaderCircle, PartyPopper } from "lucide-react";
+import { ArrowLeft, PartyPopper } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -244,7 +244,7 @@ export function OrganizationOnboardingPage({
                   >
                     {status === "checking" ? (
                       <>
-                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                        <span className="mr-2 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/25 border-t-white" />
                         Checking
                       </>
                     ) : (
