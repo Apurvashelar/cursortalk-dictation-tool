@@ -78,7 +78,7 @@ Default container-safe bind:
 
 ### Build the image
 
-From `voiceflow-auth-service/` run:
+From `cursortalk-auth-service/` run:
 
 ```bash
 docker build -t cursortalk-auth:local .

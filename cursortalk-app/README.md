@@ -25,7 +25,7 @@ The frontend files are scaffolded, but a runnable Tauri app still requires:
 ## Planned layout
 
 ```text
-dictation-app/
+cursortalk-app/
 ├── docs/
 ├── icons/
 ├── sounds/

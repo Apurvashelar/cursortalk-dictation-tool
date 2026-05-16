@@ -667,7 +667,7 @@ The desktop app:
 
 The workspace now also contains a real backend auth service:
 
-- `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/voiceflow-auth-service`
+- `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/cursortalk-auth-service`
 
 ## 11.2 Why this was implemented now
 
@@ -740,11 +740,11 @@ What still remains is final validation of that secure-storage behavior in packag
 
 1. Start Postgres.
 2. Configure `.env` in:
-   - `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/voiceflow-auth-service`
+   - `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/cursortalk-auth-service`
 3. Run:
 
 ```bash
-cd "/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/voiceflow-auth-service"
+cd "/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/cursortalk-auth-service"
 cargo run
 ```
 
@@ -764,7 +764,7 @@ curl http://127.0.0.1:4000/health
 
 These backend run/test steps are documented in:
 
-- `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/voiceflow-auth-service/README.md`
+- `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/cursortalk-auth-service/README.md`
 
 ---
 

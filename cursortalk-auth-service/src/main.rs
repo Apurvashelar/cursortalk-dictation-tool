@@ -372,7 +372,7 @@ async fn shutdown_signal() {
 async fn health() -> impl IntoResponse {
     Json(json!({
         "status": "ok",
-        "service": "voiceflow-auth-service",
+        "service": "cursortalk-auth-service",
     }))
 }
 

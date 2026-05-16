@@ -6,7 +6,7 @@ This document is the current implementation summary for the desktop client. It r
 
 This file is intentionally concise. The full detailed explanation lives in:
 
-- [IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md](/Users/appe/Documents/Vibe-Coding/Whisper%20Flow%20Ent/Production/Desktop%20Client/dictation-app/IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md)
+- [IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md](/Users/appe/Documents/Vibe-Coding/Whisper%20Flow%20Ent/Production/Desktop%20Client/cursortalk-app/IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md)
 
 ---
 
@@ -223,7 +223,7 @@ Newly achieved after the previous roadmap draft:
 
 - native auth session module exists
 - production auth backend service exists in:
-  - `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/voiceflow-auth-service`
+  - `/Users/appe/Documents/Vibe-Coding/Whisper Flow Ent/Production/Desktop Client/cursortalk-auth-service`
 - Tauri commands now exist for:
   - `get_auth_state`
   - `refresh_auth_state`
@@ -291,7 +291,7 @@ The next step is:
 This means:
 
 - provision production-grade Postgres
-- deploy `voiceflow-auth-service`
+- deploy `cursortalk-auth-service`
 - point the desktop app at the deployed auth base URL
 - validate:
   - sign in
@@ -382,4 +382,4 @@ These are worthwhile later improvements but are not the current blocker:
 - Many changes are still local-only and intentionally not pushed yet.
 - The packaged macOS validation path is now meaningful, but final distribution work is still ahead.
 - For the deep explanation of how each step works and how to test it, use:
-  - [IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md](/Users/appe/Documents/Vibe-Coding/Whisper%20Flow%20Ent/Production/Desktop%20Client/dictation-app/IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md)
+  - [IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md](/Users/appe/Documents/Vibe-Coding/Whisper%20Flow%20Ent/Production/Desktop%20Client/cursortalk-app/IMPLEMENTATION_AND_TESTING_DEEP_DIVE.md)

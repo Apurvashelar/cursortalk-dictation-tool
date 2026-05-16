@@ -11,7 +11,7 @@ Phase 0.3: Dictation logging - every raw->cleaned pair logged as JSONL
            with daily rotation and 30-day retention.
 
 Usage (manual):
-    source /home/ubuntu/dictation-server/venv/bin/activate
+    source /home/ubuntu/cursortalk-server/venv/bin/activate
     uvicorn server:app --host 127.0.0.1 --port 8080
 
 In production this is managed by dictation-api.service (systemd).

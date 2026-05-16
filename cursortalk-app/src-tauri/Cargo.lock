@@ -911,7 +911,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dictation-app"
+name = "cursortalk-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",

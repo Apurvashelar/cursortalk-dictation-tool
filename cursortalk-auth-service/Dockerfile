@@ -8,7 +8,7 @@ COPY Cargo.toml Cargo.lock ./
 COPY migrations ./migrations
 COPY src ./src
 
-RUN cargo build --release --locked --bin voiceflow-auth-service --bin seed_demo_org
+RUN cargo build --release --locked --bin cursortalk-auth-service --bin seed_demo_org
 
 FROM debian:bookworm-slim AS runtime
 
@@ -18,10 +18,10 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/voiceflow-auth-service /app/voiceflow-auth-service
+COPY --from=builder /app/target/release/cursortalk-auth-service /app/cursortalk-auth-service
 COPY --from=builder /app/target/release/seed_demo_org /app/seed_demo_org
 
 ENV AUTH_BIND_ADDR=0.0.0.0:4000
 EXPOSE 4000
 
-CMD ["/app/voiceflow-auth-service"]
+CMD ["/app/cursortalk-auth-service"]

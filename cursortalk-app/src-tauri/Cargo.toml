@@ -1,5 +1,5 @@
 [package]
-name = "dictation-app"
+name = "cursortalk-app"
 version = "0.1.0"
 description = "CursorTalk desktop client"
 authors = ["Codex"]
