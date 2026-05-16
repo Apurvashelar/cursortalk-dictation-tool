@@ -22,7 +22,7 @@ The following commands have been verified successfully:
 1. `npm run build`
 2. `cargo check`
 3. `npm run tauri -- build --debug`
-4. `python3 dictation-app/scripts/parakeet_transcribe.py --audio ... --model-dir ...`
+4. `python3 cursortalk-app/scripts/parakeet_transcribe.py --audio ... --model-dir ...`
 
 Current output artifact:
 
