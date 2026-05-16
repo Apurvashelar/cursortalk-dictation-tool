@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>VoiceFlow needs microphone access to capture dictation audio.</string>
+  <string>CursorTalk needs microphone access to capture dictation audio.</string>
 </dict>
 </plist>

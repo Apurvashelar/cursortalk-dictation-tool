@@ -30,6 +30,8 @@ type OrganizationStatus =
 
 type SettingsPageProps = {
   selectedMode: "local" | "organization";
+  allowOrganizationMode: boolean;
+  organizationModeMessage?: string | null;
   config: AppConfig | null;
   backendHealth: BackendHealth;
   sessionState: SessionState;
@@ -277,6 +279,8 @@ function hotkeyFromKeyboardEvent(event: KeyboardEvent) {
 
 export function SettingsPage({
   selectedMode,
+  allowOrganizationMode,
+  organizationModeMessage,
   config,
   backendHealth,
   sessionState,
@@ -514,17 +518,45 @@ export function SettingsPage({
                 </button>
                 <button
                   className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                    selectedMode === "organization"
-                      ? "bg-slate-950 text-white"
-                      : "text-slate-600 hover:text-slate-950"
+                    !allowOrganizationMode
+                      ? "cursor-not-allowed text-slate-400"
+                      : selectedMode === "organization"
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:text-slate-950"
                   }`}
-                  onClick={() => onModeChange("organization")}
+                  disabled={!allowOrganizationMode}
+                  onClick={() => {
+                    if (!allowOrganizationMode) {
+                      return;
+                    }
+
+                    onModeChange("organization");
+                  }}
                   type="button"
                 >
                   Enterprise
                 </button>
               </div>
             </div>
+            {!allowOrganizationMode && organizationModeMessage ? (
+              <div className="rounded-xl border border-amber-300/80 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shadow-[0_8px_22px_rgba(217,119,6,0.08)]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">
+                      Workspace required
+                    </div>
+                    <p className="m-0 text-[13px] leading-5">{organizationModeMessage}</p>
+                  </div>
+                  <button
+                    className="rounded-lg border border-amber-800/15 bg-amber-900 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-amber-950"
+                    onClick={onOpenSignIn}
+                    type="button"
+                  >
+                    Sign in
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-5">
               <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
@@ -885,12 +917,12 @@ export function SettingsPage({
             <div className="space-y-5">
               <div className="grid gap-5">
                 <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">Server URL</span>
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Workspace API URL</span>
                   <input
                     className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25 disabled:bg-slate-100"
                     disabled={selectedMode === "local"}
                     onChange={(event) => onOrganizationBaseUrlChange(event.target.value)}
-                    placeholder="https://staging-api.cursortalk.com"
+                    placeholder="https://api.your-company.com"
                     type="text"
                     value={organizationBaseUrl ?? ""}
                   />
@@ -980,6 +1012,7 @@ export function SettingsPage({
                 label="Dictation logging"
                 onChange={onLoggingEnabledChange}
               />
+              <p className="px-1 text-[12px] text-slate-400">App version: v{appVersion}</p>
             </div>
 
             <div className="space-y-2">

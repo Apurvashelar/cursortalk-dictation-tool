@@ -1,6 +1,6 @@
 import { ArrowLeft, PartyPopper } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { PermissionStatusReport, SessionState } from "../api/backend";
@@ -22,12 +22,13 @@ type OrganizationOnboardingPageProps = {
   sessionState: SessionState;
   isRecordingActionPending: boolean;
   onBack: () => void;
+  onContinueWithLocal: () => void;
   onBaseUrlChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onCheckConnection: () => void;
   onRefreshPermissions: () => void;
   onOpenPermissionSettings: (permission: "microphone" | "accessibility") => void;
-  onContinueToTest: () => void;
+  onContinueToAuth: () => void;
   onComplete: () => void;
   onStartRecording: () => void;
   onStopRecording: () => void;
@@ -72,12 +73,13 @@ export function OrganizationOnboardingPage({
   sessionState,
   isRecordingActionPending,
   onBack,
+  onContinueWithLocal,
   onBaseUrlChange,
   onApiKeyChange,
   onCheckConnection,
   onRefreshPermissions,
   onOpenPermissionSettings,
-  onContinueToTest,
+  onContinueToAuth,
   onComplete,
   onStartRecording,
   onStopRecording,
@@ -86,6 +88,7 @@ export function OrganizationOnboardingPage({
   const [isCompletionOpen, setIsCompletionOpen] = useState(false);
   const [pendingTestAction, setPendingTestAction] = useState<"starting" | "stopping" | null>(null);
   const [hasStartedTest, setHasStartedTest] = useState(false);
+  const previousSessionStateRef = useRef(sessionState.state);
   const canContinue =
     (status === "healthy" || status === "degraded") && !permissionsNeedAction(permissionStatus);
   const isRecording = sessionState.state === "recording";
@@ -114,10 +117,23 @@ export function OrganizationOnboardingPage({
   const hotkeyLabel = hotkeyTokens(hotkey).join(" + ");
 
   useEffect(() => {
-    if (sessionState.state !== "idle") {
+    const previousState = previousSessionStateRef.current;
+    previousSessionStateRef.current = sessionState.state;
+
+    if (previousState === "idle" && sessionState.state !== "idle") {
       setHasStartedTest(true);
     }
   }, [sessionState.state]);
+
+  useEffect(() => {
+    if (stage !== "test") {
+      return;
+    }
+
+    setHasStartedTest(false);
+    setPendingTestAction(null);
+    previousSessionStateRef.current = sessionState.state;
+  }, [stage]);
 
   useEffect(() => {
     if (!isRecordingActionPending) {
@@ -173,7 +189,7 @@ export function OrganizationOnboardingPage({
                     Organization setup
                   </h1>
                   <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                    Connect to your company server. Once verified, future launches will go straight
+                    Connect to your organization workspace API. Once verified, future launches will go straight
                     to Home.
                   </p>
                 </div>
@@ -182,12 +198,12 @@ export function OrganizationOnboardingPage({
                   <div className="space-y-5">
                     <label className="block">
                       <span className="mb-2 block text-sm font-medium text-slate-700">
-                        Server URL
+                        Workspace API URL
                       </span>
                       <input
                         className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25"
                         onChange={(event) => onBaseUrlChange(event.target.value)}
-                        placeholder="https://staging-api.cursortalk.com"
+                        placeholder="https://api.your-company.com"
                         type="text"
                         value={baseUrl}
                       />
@@ -221,9 +237,9 @@ export function OrganizationOnboardingPage({
                       : status === "checking"
                         ? "Checking connection..."
                         : status === "degraded"
-                          ? "Connected, but the server returned a warning."
+                          ? "Connected, but the workspace API returned a warning."
                         : status === "unreachable"
-                            ? "Could not connect. Check your server URL and try again."
+                            ? "Could not connect. Check your workspace API URL and try again."
                             : statusMessage}
                   </p>
                 </div>
@@ -254,10 +270,17 @@ export function OrganizationOnboardingPage({
                   <button
                     className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-700 transition-colors hover:border-black/20 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={!canContinue}
-                    onClick={onContinueToTest}
+                    onClick={onContinueToAuth}
                     type="button"
                   >
-                    Continue to test
+                    Continue to sign in
+                  </button>
+                  <button
+                    className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-black/20 hover:text-slate-900"
+                    onClick={onContinueWithLocal}
+                    type="button"
+                  >
+                    Continue with Personal mode
                   </button>
                 </div>
               </>

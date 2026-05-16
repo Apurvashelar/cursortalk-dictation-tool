@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         app: path.resolve(__dirname, "index.html"),
         marketing: path.resolve(__dirname, "marketing.html"),
+        customerSetup: path.resolve(__dirname, "customer-setup.html"),
       },
     },
   },

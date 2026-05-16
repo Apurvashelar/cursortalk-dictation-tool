@@ -40,14 +40,9 @@ export const defaultAuthState: AuthState = {
 
 export type AppConfig = {
   mode: string;
-  personal_mode_enabled: boolean;
   hotkey: string;
   cleanup_url: string;
   health_url: string;
-  tunnel_enabled: boolean;
-  tunnel_host: string;
-  tunnel_local_port: number;
-  tunnel_remote_port: number;
   stt_model_dir: string;
 };
 

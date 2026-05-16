@@ -13,7 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useState } from "react";
-import { VoiceFlowMark } from "../components/VoiceFlowMark";
+import { CursorTalkMark } from "../components/CursorTalkMark";
 
 type Feature = {
   title: string;
@@ -140,7 +140,7 @@ const faqs: FaqItem[] = [
   {
     question: "What does the website position this product as?",
     answer:
-      "A serious desktop dictation product for professional and enterprise workflows, with a premium self-serve download path and enterprise-safe messaging.",
+      "A serious desktop dictation product for professional and enterprise workflows, with a premium self-serve download path and buyer-ready messaging.",
   },
   {
     question: "Does it fit into existing tools?",
@@ -163,6 +163,19 @@ const faqs: FaqItem[] = [
       "Teams and individuals who generate a high volume of written communication from meetings, calls, notes, summaries, and daily operational work.",
   },
 ];
+
+const desktopDownloads = {
+  macos: {
+    href: "./downloads/CursorTalk-macOS.zip",
+    label: "Download for Mac",
+    sublabel: "Apple Silicon + Intel · direct zip download",
+  },
+  windows: {
+    href: "mailto:sales@cursortalk.com?subject=CursorTalk%20Windows%20Desktop%20App",
+    label: "Windows build coming soon",
+    sublabel: "Contact us for rollout access",
+  },
+};
 
 function ProductMockup() {
   return (
@@ -274,9 +287,9 @@ export function MarketingLandingPage() {
         <div className="mk-shell mk-nav-inner">
           <a className="mk-brand" href="#">
             <div className="mk-brand-mark">
-              <VoiceFlowMark className="h-4 w-4" />
+              <CursorTalkMark className="h-4 w-4" />
             </div>
-            <span>VoiceFlow Enterprise</span>
+            <span>CursorTalk</span>
           </a>
 
           <div className="mk-nav-links">
@@ -317,13 +330,17 @@ export function MarketingLandingPage() {
             </p>
 
             <div className="mk-hero-actions">
-              <a className="mk-button mk-button-primary mk-button-large" href="#download">
+              <a
+                className="mk-button mk-button-primary mk-button-large"
+                download
+                href={desktopDownloads.macos.href}
+              >
                 <Download size={18} strokeWidth={2} />
-                Download for Mac
+                {desktopDownloads.macos.label}
               </a>
               <a className="mk-button mk-button-secondary mk-button-large" href="#download">
                 <Download size={18} strokeWidth={2} />
-                Download for Windows
+                Windows
               </a>
             </div>
 
@@ -358,11 +375,11 @@ export function MarketingLandingPage() {
             <div className="mk-section-head">
               <p className="mk-mono mk-kicker">Features</p>
               <h2 className="mk-display mk-section-title">
-                A sharper product story for enterprise desktop dictation.
+                Desktop dictation built for serious professional workflows.
               </h2>
               <p className="mk-section-copy">
-                The goal is to make the product feel real, premium, and operationally credible
-                before someone scrolls halfway down the page.
+                The product should feel real, premium, and operationally credible before someone
+                scrolls halfway down the page.
               </p>
             </div>
 
@@ -494,32 +511,32 @@ export function MarketingLandingPage() {
                 Start dictating in under a minute.
               </h2>
               <p className="mk-section-copy">
-                The site stays premium and enterprise-safe while still making it easy for someone
-                to install the desktop app immediately.
+                The site stays premium and buyer-ready while still making it easy for someone to
+                install the desktop app immediately.
               </p>
             </div>
 
             <div className="mk-download-grid">
-              <a className="mk-download-card" href="/">
+              <a className="mk-download-card" download href={desktopDownloads.macos.href}>
                 <div className="mk-download-top">
                   <Download size={24} strokeWidth={2} />
                   <ArrowRight size={16} strokeWidth={2} />
                 </div>
                 <h3>macOS</h3>
-                <p>Universal build for Apple Silicon and Intel.</p>
+                <p>{desktopDownloads.macos.sublabel}</p>
                 <div className="mk-download-meta">
                   <span>Desktop app</span>
                   <span>Production-ready</span>
                 </div>
               </a>
 
-              <a className="mk-download-card" href="/">
+              <a className="mk-download-card" href={desktopDownloads.windows.href}>
                 <div className="mk-download-top">
                   <Download size={24} strokeWidth={2} />
                   <ArrowRight size={16} strokeWidth={2} />
                 </div>
                 <h3>Windows</h3>
-                <p>Built for modern desktop usage and team rollout.</p>
+                <p>{desktopDownloads.windows.sublabel}</p>
                 <div className="mk-download-meta">
                   <span>Cross-app workflow</span>
                   <span>Enterprise positioning</span>
@@ -568,10 +585,17 @@ export function MarketingLandingPage() {
               dictation app.
             </p>
             <div className="mk-hero-actions">
-              <a className="mk-button mk-button-primary mk-button-large" href="#download">
-                Download app
+              <a
+                className="mk-button mk-button-primary mk-button-large"
+                download
+                href={desktopDownloads.macos.href}
+              >
+                {desktopDownloads.macos.label}
               </a>
-              <a className="mk-button mk-button-secondary mk-button-large" href="mailto:sales@example.com">
+              <a
+                className="mk-button mk-button-secondary mk-button-large"
+                href="mailto:sales@cursortalk.com"
+              >
                 Contact sales
               </a>
             </div>
@@ -582,8 +606,8 @@ export function MarketingLandingPage() {
       <footer className="mk-footer">
         <div className="mk-shell mk-footer-inner">
           <div className="mk-footer-brand">
-            <VoiceFlowMark className="h-4 w-4" />
-            <span>VoiceFlow Enterprise</span>
+            <CursorTalkMark className="h-4 w-4" />
+            <span>CursorTalk</span>
           </div>
           <p>Desktop dictation designed for professional and enterprise workflows.</p>
         </div>

@@ -56,6 +56,7 @@ fn main() {
             commands::refresh_auth_state,
             commands::sign_in,
             commands::sign_up,
+            commands::start_oauth_sign_in,
             commands::update_account_profile,
             commands::sign_out,
             commands::delete_account,

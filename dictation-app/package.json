@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "clean-macos-bundles": "bash scripts/clean-macos-bundles.sh",
+    "prepare-downloads": "bash scripts/prepare-download-assets.sh",
+    "build": "npm run prepare-downloads && tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build:mac": "npm run clean-macos-bundles && npm run tauri build",
+    "release:macos": "bash scripts/release-macos-distribution.sh"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

@@ -53,6 +53,18 @@ export function DiagnosticsPage({
     permissionStatus.microphone.status !== "ready" ? "Microphone" : null,
     permissionStatus.accessibility.status !== "ready" ? "Accessibility" : null,
   ].filter(Boolean) as string[];
+  const cleanupModelVersion = sessionState.cleanup_model_version;
+  const cleanupSource = sessionState.cleanup_source;
+  const cleanupRuntimeLabel =
+    cleanupSource === "local"
+      ? "Local cleanup runtime"
+      : cleanupSource === "remote"
+        ? "Organization cleanup runtime"
+        : cleanupSource === "fallback"
+          ? "Transcript-only fallback"
+          : selectedMode === "local"
+            ? "Waiting for first local dictation"
+            : "Waiting for first organization dictation";
 
   const healthCards = [
     {
@@ -72,7 +84,7 @@ export function DiagnosticsPage({
       subtitle: `${sttStatus.engine} · native runtime`,
     },
     {
-      title: "Cleanup server",
+      title: "Cleanup runtime",
       status:
         selectedMode === "local"
           ? ("healthy" as const)
@@ -95,13 +107,29 @@ export function DiagnosticsPage({
           : `${backendHealth.healthUrl} · ${backendHealth.message}`,
     },
     {
-      title: "Memory",
-      status: "warning" as const,
-      value: "Unavailable",
+      title: "Mode",
+      status:
+        selectedMode === "organization" && sessionState.used_cleanup_fallback
+          ? ("warning" as const)
+          : ("healthy" as const),
+      value: selectedMode === "local" ? "Personal" : "Enterprise",
       subtitle:
-        selectedMode === "local"
-          ? "Process memory stats not wired yet"
-          : "Remote server memory is not reported yet",
+        selectedMode === "organization"
+          ? sessionState.used_cleanup_fallback
+            ? "Transcript-only fallback active"
+            : "Connected to organization workspace"
+          : "Running on-device",
+    },
+    {
+      title: "Cleanup model",
+      status:
+        sessionState.used_cleanup_fallback || cleanupSource === "fallback"
+          ? ("warning" as const)
+          : cleanupModelVersion
+            ? ("healthy" as const)
+            : ("warning" as const),
+      value: cleanupModelVersion ?? "No model reported yet",
+      subtitle: cleanupRuntimeLabel,
     },
     {
       title: "Permissions",
@@ -119,6 +147,8 @@ export function DiagnosticsPage({
       `Hotkey: ${sessionState.hotkey}`,
       `STT engine: ${sttStatus.engine} (${sttStatus.state})`,
       `Cleanup status: ${selectedMode === "local" ? "local runtime" : backendHealth.status}`,
+      `Cleanup source: ${cleanupSource ?? "unknown"}`,
+      `Cleanup model version: ${cleanupModelVersion ?? "unknown"}`,
       `Microphone permission: ${permissionStatus.microphone.label}`,
       `Accessibility permission: ${permissionStatus.accessibility.label}`,
       `Backend health: ${backendHealth.message}`,

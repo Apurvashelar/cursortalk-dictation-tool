@@ -10,8 +10,11 @@ type AuthMode = "signin" | "signup";
 type AuthOnboardingPageProps = {
   onBack: () => void;
   onSkip: () => void;
+  skipLabel?: string;
   onSignIn: (input: { email: string; password: string }) => Promise<void>;
   onSignUp: (input: { email: string; password: string }) => Promise<void>;
+  onGoogleSignIn: () => Promise<void>;
+  allowGoogleSignIn: boolean;
   isSubmitting: boolean;
   errorMessage: string | null;
 };
@@ -24,19 +27,14 @@ function GoogleMark() {
   );
 }
 
-function GitHubMark() {
-  return (
-    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-950 text-[9px] font-semibold text-white">
-      GH
-    </span>
-  );
-}
-
 export function AuthOnboardingPage({
   onBack,
   onSkip,
+  skipLabel = "Skip for now",
   onSignIn,
   onSignUp,
+  onGoogleSignIn,
+  allowGoogleSignIn,
   isSubmitting,
   errorMessage,
 }: AuthOnboardingPageProps) {
@@ -217,28 +215,29 @@ export function AuthOnboardingPage({
               ) : null}
             </form>
 
-            <div className="my-7 flex items-center gap-4">
-              <div className="h-px flex-1 bg-black/10" />
-              <span className="text-xs uppercase tracking-[0.18em] text-slate-400">or</span>
-              <div className="h-px flex-1 bg-black/10" />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                className="inline-flex items-center justify-center gap-3 rounded-2xl border border-black/10 bg-white/84 px-4 py-3 text-sm font-medium text-slate-800 transition-all hover:border-black/20 hover:bg-white"
-                type="button"
-              >
-                <GoogleMark />
-                Continue with Google
-              </button>
-              <button
-                className="inline-flex items-center justify-center gap-3 rounded-2xl border border-black/10 bg-white/84 px-4 py-3 text-sm font-medium text-slate-800 transition-all hover:border-black/20 hover:bg-white"
-                type="button"
-              >
-                <GitHubMark />
-                Continue with GitHub
-              </button>
-            </div>
+            {allowGoogleSignIn ? (
+              <>
+                <div className="mt-7 flex justify-center">
+                  <button
+                    className="inline-flex min-w-[240px] items-center justify-center gap-3 rounded-2xl border border-black/10 bg-white/84 px-6 py-3 text-sm font-medium text-slate-800 transition-all hover:border-black/20 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isSubmitting}
+                    onClick={async () => {
+                      setValidationError(null);
+                      await onGoogleSignIn();
+                    }}
+                    type="button"
+                  >
+                    <GoogleMark />
+                    Continue with Google
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Organization mode requires a workspace account. Sign in with your workspace email
+                and password to continue.
+              </p>
+            )}
 
             <div className="mt-8 text-center">
               <button
@@ -246,7 +245,7 @@ export function AuthOnboardingPage({
                 onClick={onSkip}
                 type="button"
               >
-                Skip for now
+                {skipLabel}
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { Activity, AudioLines, House, PlugZap, Settings2, ShieldCheck, SlidersHorizontal, UserRound } from "lucide-react";
+import { Activity, AudioLines, Building2, House, Laptop2, PlugZap, Settings2, ShieldCheck, SlidersHorizontal, TriangleAlert, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type {
   AppConfig,
@@ -19,7 +19,7 @@ import type {
 import { defaultAuthState, defaultBackendHealth } from "../api/backend";
 import { AuthOnboardingPage } from "../pages/AuthOnboardingPage";
 import { permissionsNeedAction } from "../components/PermissionPrompt";
-import { VoiceFlowMark } from "../components/VoiceFlowMark";
+import { CursorTalkMark } from "../components/CursorTalkMark";
 import { HomePage, type RecentActivityItem, type UsageStats } from "../pages/HomePage";
 import {
   LocalOnboardingPage,
@@ -31,19 +31,19 @@ import { SettingsPage, type SettingsSection } from "../pages/SettingsPage";
 import { WelcomePage } from "../pages/WelcomePage";
 import { useAppState } from "../state/appState";
 
-const ONBOARDING_COMPLETE_KEY = "voiceflow-enterprise-app.onboarding-complete";
-const SELECTED_MODE_KEY = "voiceflow-enterprise-app.selected-mode";
-const ORGANIZATION_BASE_URL_KEY = "voiceflow-enterprise-app.organization-base-url";
-const ORGANIZATION_API_KEY_KEY = "voiceflow-enterprise-app.organization-api-key";
-const HOTKEY_KEY = "voiceflow-enterprise-app.hotkey";
-const LOGGING_ENABLED_KEY = "voiceflow-enterprise-app.logging-enabled";
-const PASTE_RAW_ON_FAILURE_KEY = "voiceflow-enterprise-app.paste-raw-on-failure";
-const OVERLAY_POSITION_KEY = "voiceflow-enterprise-app.overlay-position";
-const LAUNCH_AT_LOGIN_KEY = "voiceflow-enterprise-app.launch-at-login";
-const SHOW_IN_DOCK_KEY = "voiceflow-enterprise-app.show-in-dock";
-const PREFERRED_AUDIO_INPUT_KEY = "voiceflow-enterprise-app.preferred-audio-input";
-const START_SOUND_ENABLED_KEY = "voiceflow-enterprise-app.start-sound-enabled";
-const DONE_SOUND_ENABLED_KEY = "voiceflow-enterprise-app.done-sound-enabled";
+const ONBOARDING_COMPLETE_KEY = "cursortalk-app.onboarding-complete";
+const SELECTED_MODE_KEY = "cursortalk-app.selected-mode";
+const ORGANIZATION_BASE_URL_KEY = "cursortalk-app.organization-base-url";
+const ORGANIZATION_API_KEY_KEY = "cursortalk-app.organization-api-key";
+const HOTKEY_KEY = "cursortalk-app.hotkey";
+const LOGGING_ENABLED_KEY = "cursortalk-app.logging-enabled";
+const PASTE_RAW_ON_FAILURE_KEY = "cursortalk-app.paste-raw-on-failure";
+const OVERLAY_POSITION_KEY = "cursortalk-app.overlay-position";
+const LAUNCH_AT_LOGIN_KEY = "cursortalk-app.launch-at-login";
+const SHOW_IN_DOCK_KEY = "cursortalk-app.show-in-dock";
+const PREFERRED_AUDIO_INPUT_KEY = "cursortalk-app.preferred-audio-input";
+const START_SOUND_ENABLED_KEY = "cursortalk-app.start-sound-enabled";
+const DONE_SOUND_ENABLED_KEY = "cursortalk-app.done-sound-enabled";
 const LOCAL_SETUP_PROGRESS_EVENT = "local-setup-progress";
 const TRAY_NAVIGATE_EVENT = "tray-navigate";
 const AUTH_EVENT = "auth-state-changed";
@@ -323,7 +323,7 @@ export function App() {
   });
   const [authState, setAuthState] = useState<AuthState>(defaultAuthState);
   const [authEntryPoint, setAuthEntryPoint] = useState<"onboarding" | "settings">("onboarding");
-  const [postAuthStep, setPostAuthStep] = useState<"mode" | "organization_setup">("mode");
+  const [postAuthStep, setPostAuthStep] = useState<"mode" | "organization_test">("mode");
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<"local" | "organization">(() => {
@@ -374,7 +374,7 @@ export function App() {
     "idle" | "checking" | "unknown" | "healthy" | "degraded" | "unreachable"
   >("idle");
   const [organizationSetupMessage, setOrganizationSetupMessage] = useState(
-    "Enter your server URL, then verify the connection.",
+    "Enter your workspace API URL, then verify the connection.",
   );
   const [organizationSetupEntryPoint, setOrganizationSetupEntryPoint] = useState<
     "onboarding" | "settings"
@@ -387,7 +387,16 @@ export function App() {
   const hasOrganizationAccess = Boolean(authState.organization_id);
 
   function normalizeBaseUrl(baseUrl: string) {
-    return baseUrl.trim().replace(/\/$/, "");
+    const trimmed = baseUrl.trim().replace(/\/$/, "");
+    if (!trimmed) {
+      return "";
+    }
+
+    if (/^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+
+    return `https://${trimmed}`;
   }
 
   function buildCleanupUrl(baseUrl: string) {
@@ -395,13 +404,13 @@ export function App() {
     return normalized ? `${normalized}/clean` : "";
   }
 
-  function buildHealthUrl(baseUrl: string) {
+  function buildCleanupHealthUrl(baseUrl: string) {
     const normalized = normalizeBaseUrl(baseUrl);
-    return normalized ? `${normalized}/health` : "";
+    return normalized ? `${normalized}/cleanup-health` : "";
   }
 
   function resolveAuthBaseUrlForClient() {
-    return authState.auth_base_url ?? STAGING_AUTH_BASE_URL;
+    return normalizeBaseUrl(organizationBaseUrl) || authState.auth_base_url || STAGING_AUTH_BASE_URL;
   }
 
   async function loadConfig() {
@@ -530,7 +539,7 @@ export function App() {
         : config?.cleanup_url ?? defaultBackendHealth.endpoint;
     const healthUrl =
       selectedMode === "organization"
-        ? buildHealthUrl(organizationBaseUrl)
+        ? buildCleanupHealthUrl(organizationBaseUrl)
         : config?.health_url ?? defaultBackendHealth.healthUrl;
 
     try {
@@ -1066,7 +1075,7 @@ export function App() {
   async function completeOrganizationOnboarding() {
     if (!hasOrganizationAccess) {
       setAuthEntryPoint(organizationSetupEntryPoint);
-      setPostAuthStep("organization_setup");
+      setPostAuthStep("organization_test");
       setAuthError("Sign in with an organization account before finishing organization setup.");
       setOnboardingStep("auth");
       return;
@@ -1097,11 +1106,30 @@ export function App() {
     window.localStorage.setItem(SELECTED_MODE_KEY, mode);
   }
 
-  function openOrganizationSetupFromSettings() {
-    setOrganizationSetupEntryPoint("settings");
+  function openOrganizationSetup(entryPoint: "onboarding" | "settings") {
+    setOrganizationSetupEntryPoint(entryPoint);
     setOrganizationSetupStatus("idle");
-    setOrganizationSetupMessage("Enter your server URL, then verify the connection.");
+    setOrganizationSetupMessage("Enter your workspace API URL, then verify the connection.");
     setOnboardingStep("organization_setup");
+  }
+
+  async function continueWithLocalMode() {
+    setAuthError(null);
+    setSelectedMode("local");
+    await invoke("set_dictation_test_mode", { enabled: false }).catch((error) => {
+      console.error("Failed to disable dictation test mode", error);
+    });
+    window.localStorage.setItem(SELECTED_MODE_KEY, "local");
+
+    if (organizationSetupEntryPoint === "settings") {
+      setOnboardingStep(null);
+      setCurrentPage("settings");
+      setSettingsSection("general");
+      setOrganizationSetupEntryPoint("onboarding");
+      return;
+    }
+
+    setOnboardingStep("local_setup");
   }
 
   function handleModeChange(mode: "local" | "organization") {
@@ -1111,10 +1139,8 @@ export function App() {
     }
 
     if (!hasOrganizationAccess) {
-      setAuthEntryPoint("settings");
-      setPostAuthStep("organization_setup");
-      setAuthError("Sign in with an organization account before enabling organization mode.");
-      setOnboardingStep("auth");
+      setAuthError(null);
+      openOrganizationSetup("settings");
       return;
     }
 
@@ -1127,11 +1153,16 @@ export function App() {
       return;
     }
 
-    openOrganizationSetupFromSettings();
+    openOrganizationSetup("settings");
   }
 
   function skipAuthentication() {
     setAuthError(null);
+    if (postAuthStep === "organization_test") {
+      void continueWithLocalMode();
+      setPostAuthStep("mode");
+      return;
+    }
     setPostAuthStep("mode");
     if (authEntryPoint === "settings") {
       setOnboardingStep(null);
@@ -1148,6 +1179,31 @@ export function App() {
     setOnboardingStep("auth");
   }
 
+  function finishAuthentication(nextState: AuthState) {
+    setAuthState(nextState);
+
+    if (postAuthStep === "organization_test") {
+      if (nextState.organization_id) {
+        setAuthError(null);
+        setOrganizationSetupEntryPoint(authEntryPoint);
+        setOnboardingStep("organization_test");
+      } else {
+        setAuthError(
+          "This account is not associated with a workspace organization. Sign in with workspace credentials or continue with Personal mode.",
+        );
+        setOnboardingStep("auth");
+      }
+    } else if (authEntryPoint === "settings") {
+      setOnboardingStep(null);
+      setCurrentPage("settings");
+      setSettingsSection("account");
+    } else {
+      setOnboardingStep("mode");
+    }
+
+    setPostAuthStep("mode");
+  }
+
   async function handleSignIn(input: { email: string; password: string }) {
     setIsSubmittingAuth(true);
     setAuthError(null);
@@ -1158,27 +1214,7 @@ export function App() {
         password: input.password,
         authBaseUrl: resolveAuthBaseUrlForClient(),
       });
-      setAuthState(nextState);
-
-      if (postAuthStep === "organization_setup") {
-        if (nextState.organization_id) {
-          setAuthError(null);
-          setOrganizationSetupEntryPoint(authEntryPoint);
-          setOnboardingStep("organization_setup");
-        } else {
-          setAuthError(null);
-          setSelectedMode("local");
-          window.localStorage.setItem(SELECTED_MODE_KEY, "local");
-          setOnboardingStep("mode");
-        }
-      } else if (authEntryPoint === "settings") {
-        setOnboardingStep(null);
-        setCurrentPage("settings");
-        setSettingsSection("account");
-      } else {
-        setOnboardingStep("mode");
-      }
-      setPostAuthStep("mode");
+      finishAuthentication(nextState);
     } catch (error) {
       setAuthError(String(error));
     } finally {
@@ -1196,27 +1232,24 @@ export function App() {
         password: input.password,
         authBaseUrl: resolveAuthBaseUrlForClient(),
       });
-      setAuthState(nextState);
+      finishAuthentication(nextState);
+    } catch (error) {
+      setAuthError(String(error));
+    } finally {
+      setIsSubmittingAuth(false);
+    }
+  }
 
-      if (postAuthStep === "organization_setup") {
-        if (nextState.organization_id) {
-          setAuthError(null);
-          setOrganizationSetupEntryPoint(authEntryPoint);
-          setOnboardingStep("organization_setup");
-        } else {
-          setAuthError(null);
-          setSelectedMode("local");
-          window.localStorage.setItem(SELECTED_MODE_KEY, "local");
-          setOnboardingStep("mode");
-        }
-      } else if (authEntryPoint === "settings") {
-        setOnboardingStep(null);
-        setCurrentPage("settings");
-        setSettingsSection("account");
-      } else {
-        setOnboardingStep("mode");
-      }
-      setPostAuthStep("mode");
+  async function handleSocialSignIn(provider: "google" | "github") {
+    setIsSubmittingAuth(true);
+    setAuthError(null);
+
+    try {
+      const nextState = await invoke<AuthState>("start_oauth_sign_in", {
+        provider,
+        authBaseUrl: resolveAuthBaseUrlForClient(),
+      });
+      finishAuthentication(nextState);
     } catch (error) {
       setAuthError(String(error));
     } finally {
@@ -1238,16 +1271,16 @@ export function App() {
 
   async function checkOrganizationConnection() {
     const cleanupUrl = buildCleanupUrl(organizationBaseUrl);
-    const healthUrl = buildHealthUrl(organizationBaseUrl);
+    const healthUrl = buildCleanupHealthUrl(organizationBaseUrl);
 
     if (!cleanupUrl || !healthUrl) {
       setOrganizationSetupStatus("unreachable");
-      setOrganizationSetupMessage("Enter a valid server URL first.");
+      setOrganizationSetupMessage("Enter a valid workspace API URL first.");
       return;
     }
 
     setOrganizationSetupStatus("checking");
-    setOrganizationSetupMessage("Checking connection to the organization backend.");
+    setOrganizationSetupMessage("Checking connection to the workspace API.");
 
     try {
       const nextHealth = await invoke<{
@@ -1290,27 +1323,24 @@ export function App() {
     if (onboardingStep === "welcome" || onboardingStep === "mode") {
       return (
         <WelcomePage
+          allowOrganizationMode
+          organizationModeMessage={null}
           step={onboardingStep}
           onContinue={() => {
-            setAuthEntryPoint("onboarding");
-            setPostAuthStep("mode");
             setAuthError(null);
-            setOnboardingStep("auth");
+            setOnboardingStep("mode");
           }}
-          onBack={() => (onboardingStep === "mode" ? setOnboardingStep("auth") : setOnboardingStep("welcome"))}
+          onBack={() => (onboardingStep === "mode" ? setOnboardingStep("welcome") : setOnboardingStep("welcome"))}
           onChooseMode={(mode) => {
             if (mode === "local") {
               beginLocalOnboarding();
             } else if (!hasOrganizationAccess) {
               setSelectedMode("organization");
-              setAuthEntryPoint("onboarding");
-              setPostAuthStep("organization_setup");
-              setAuthError("Sign in with an organization account before configuring organization mode.");
-              setOnboardingStep("auth");
+              setAuthError(null);
+              openOrganizationSetup("onboarding");
             } else {
-              setOrganizationSetupEntryPoint("onboarding");
               setSelectedMode("organization");
-              setOnboardingStep("organization_setup");
+              openOrganizationSetup("onboarding");
             }
           }}
         />
@@ -1320,6 +1350,7 @@ export function App() {
     if (onboardingStep === "auth") {
       return (
         <AuthOnboardingPage
+          allowGoogleSignIn={postAuthStep !== "organization_test"}
           errorMessage={authError}
           isSubmitting={isSubmittingAuth}
           onBack={() => {
@@ -1331,11 +1362,13 @@ export function App() {
               return;
             }
 
-            setOnboardingStep("welcome");
+            setOnboardingStep(postAuthStep === "organization_test" ? "organization_setup" : "welcome");
           }}
+          onGoogleSignIn={() => handleSocialSignIn("google")}
           onSignIn={handleSignIn}
           onSignUp={handleSignUp}
           onSkip={skipAuthentication}
+          skipLabel={postAuthStep === "organization_test" ? "Continue with Personal mode" : "Skip for now"}
         />
       );
     }
@@ -1347,6 +1380,7 @@ export function App() {
           hotkey={hotkey}
           apiKey={organizationApiKey}
           baseUrl={organizationBaseUrl}
+          onContinueWithLocal={continueWithLocalMode}
           onApiKeyChange={(value) => setOrganizationApiKey(value)}
           onBack={() =>
             onboardingStep === "organization_test"
@@ -1363,10 +1397,15 @@ export function App() {
           onBaseUrlChange={(value) => {
             setOrganizationBaseUrl(value);
             setOrganizationSetupStatus("idle");
-            setOrganizationSetupMessage("Enter your server URL, then verify the connection.");
+            setOrganizationSetupMessage("Enter your workspace API URL, then verify the connection.");
           }}
           onCheckConnection={checkOrganizationConnection}
-          onContinueToTest={() => setOnboardingStep("organization_test")}
+          onContinueToAuth={() => {
+            setAuthEntryPoint(organizationSetupEntryPoint);
+            setPostAuthStep("organization_test");
+            setAuthError(null);
+            setOnboardingStep("auth");
+          }}
           onComplete={completeOrganizationOnboarding}
           permissionStatus={permissionStatus}
           isRefreshingPermissions={isRefreshingPermissions}
@@ -1442,6 +1481,11 @@ export function App() {
     setOnboardingStep("welcome");
   }
 
+  const sidebarModeLabel = selectedMode === "local" ? "Personal mode" : "Enterprise mode";
+  const SidebarModeIcon = selectedMode === "local" ? Laptop2 : Building2;
+  const showSidebarFallback =
+    selectedMode === "organization" && sessionState.used_cleanup_fallback;
+
   const accountName = authDisplayName(authState);
   const accountInitials = authInitials(authState);
 
@@ -1454,9 +1498,9 @@ export function App() {
           type="button"
         >
           <span className="grid h-10 w-10 place-items-center rounded-2xl bg-slate-950 text-white shadow-[0_14px_28px_rgba(15,23,42,0.14)]">
-            <VoiceFlowMark className="h-[18px] w-[18px]" />
+            <CursorTalkMark className="h-[18px] w-[18px]" />
           </span>
-          <span className="text-[15px] font-semibold tracking-[-0.03em]">VoiceFlow</span>
+          <span className="text-[15px] font-semibold tracking-[-0.03em]">CursorTalk</span>
         </button>
 
         <nav className="mt-8 space-y-1.5">
@@ -1502,7 +1546,20 @@ export function App() {
           </nav>
         </div>
 
-        <div className="mt-auto px-3 pt-6 text-[12px] text-slate-400">v{APP_VERSION}</div>
+        <div className="mt-auto px-3 pt-6">
+          <div className="space-y-2">
+            <div className="inline-flex w-full items-center gap-2 rounded-2xl border border-black/10 bg-white/82 px-3 py-2.5 text-[12px] font-medium text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <SidebarModeIcon className="h-4 w-4 shrink-0" />
+              <span>{sidebarModeLabel}</span>
+            </div>
+            {showSidebarFallback ? (
+              <div className="inline-flex w-full items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] font-medium text-amber-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <TriangleAlert className="h-4 w-4 shrink-0" />
+                <span>Transcript-only fallback active</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </aside>
 
       <section className="flex min-h-screen flex-col">
@@ -1586,6 +1643,8 @@ export function App() {
           ) : (
             <SettingsPage
               selectedMode={selectedMode}
+              allowOrganizationMode={hasOrganizationAccess}
+              organizationModeMessage="Sign in with your workspace or organization credentials to enable organization mode."
               config={config}
               backendHealth={backendHealth}
               sessionState={sessionState}
@@ -1600,7 +1659,7 @@ export function App() {
               onOrganizationBaseUrlChange={(value) => {
                 setOrganizationBaseUrl(value);
                 setOrganizationSetupStatus("idle");
-                setOrganizationSetupMessage("Enter your server URL, then verify the connection.");
+                setOrganizationSetupMessage("Enter your workspace API URL, then verify the connection.");
               }}
               onOrganizationApiKeyChange={setOrganizationApiKey}
               onCheckConnection={checkOrganizationConnection}

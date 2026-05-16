@@ -1,5 +1,8 @@
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -7,6 +10,7 @@ use anyhow::{anyhow, Context, Result};
 use keyring::Entry;
 use reqwest::blocking::{Client, Response};
 use reqwest::StatusCode;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -220,6 +224,16 @@ struct UpdateProfilePayload<'a> {
     last_name: &'a str,
 }
 
+#[derive(Debug, Deserialize)]
+struct OAuthStartResponse {
+    authorization_url: String,
+}
+
+#[derive(Debug, Serialize)]
+struct OAuthExchangePayload<'a> {
+    auth_code: &'a str,
+}
+
 fn http_client() -> Result<Client> {
     Client::builder()
         .timeout(Duration::from_secs(20))
@@ -378,6 +392,177 @@ fn clear_persisted_session() -> Result<()> {
 
 fn endpoint(base_url: &str, path: &str) -> String {
     format!("{base_url}{path}")
+}
+
+fn oauth_endpoint(base_url: &str, provider: &str, path: &str) -> String {
+    format!("{base_url}/auth/oauth/{provider}/{path}")
+}
+
+fn open_browser(url: &str) -> Result<()> {
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(url);
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", url]);
+        command
+    };
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+
+    command
+        .spawn()
+        .context("failed to open the browser for sign-in")?;
+    Ok(())
+}
+
+fn wait_for_oauth_callback(listener: TcpListener) -> Result<String> {
+    listener
+        .set_nonblocking(true)
+        .context("failed to configure local sign-in listener")?;
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(180);
+
+    loop {
+        if std::time::Instant::now() > deadline {
+            return Err(anyhow!(
+                "The sign-in browser flow took too long. Please try again."
+            ));
+        }
+
+        match listener.accept() {
+            Ok((mut stream, _)) => {
+                let mut buffer = [0_u8; 4096];
+                let bytes_read = stream
+                    .read(&mut buffer)
+                    .context("failed to read the sign-in callback")?;
+                if bytes_read == 0 {
+                    continue;
+                }
+                let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+                let request_line = request.lines().next().unwrap_or_default();
+                let Some(path) = request_line.split_whitespace().nth(1) else {
+                    let body = oauth_status_page(
+                        "CursorTalk sign-in in progress",
+                        "You can return to the app after sign-in completes.",
+                        "#0f172a",
+                        false,
+                    );
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    let _ = stream.flush();
+                    continue;
+                };
+                let callback_url = Url::parse(&format!("http://localhost{path}"))
+                    .context("failed to parse the sign-in callback URL")?;
+                let auth_code = callback_url
+                    .query_pairs()
+                    .find_map(|(key, value)| {
+                        if key == "auth_code" {
+                            Some(value.into_owned())
+                        } else {
+                            None
+                        }
+                    });
+                let error = callback_url.query_pairs().find_map(|(key, value)| {
+                    if key == "error" {
+                        Some(value.into_owned())
+                    } else {
+                        None
+                    }
+                });
+
+                if auth_code.is_none() && error.is_none() {
+                    let body = oauth_status_page(
+                        "CursorTalk sign-in in progress",
+                        "You can return to the app after sign-in completes.",
+                        "#0f172a",
+                        false,
+                    );
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    let _ = stream.flush();
+                    continue;
+                }
+
+                let (body, result) = match (auth_code, error) {
+                    (Some(auth_code), _) => (
+                        oauth_status_page(
+                            "CursorTalk sign-in complete",
+                            "You can close this window and return to the app.",
+                            "#166534",
+                            true,
+                        ),
+                        Ok(auth_code),
+                    ),
+                    (_, Some(error)) => (
+                        oauth_status_page(
+                            "CursorTalk sign-in failed",
+                            "You can close this window and return to the app.",
+                            "#b91c1c",
+                            false,
+                        ),
+                        Err(anyhow!("OAuth sign-in failed: {error}")),
+                    ),
+                    _ => (
+                        oauth_status_page(
+                            "CursorTalk sign-in failed",
+                            "The sign-in callback was missing the required data.",
+                            "#b91c1c",
+                            false,
+                        ),
+                        Err(anyhow!("OAuth sign-in callback did not include an auth code.")),
+                    ),
+                };
+
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+
+                return result;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(150));
+            }
+            Err(error) => {
+                return Err(anyhow!("failed to accept the sign-in callback: {error}"));
+            }
+        }
+    }
+}
+
+fn oauth_status_page(title: &str, message: &str, accent_color: &str, auto_close: bool) -> String {
+    let auto_close_script = if auto_close {
+        "<script>(function(){const closeWindow=()=>{window.close();window.setTimeout(()=>window.close(),75);};window.addEventListener('load',closeWindow);closeWindow();})();</script>"
+    } else {
+        ""
+    };
+
+    format!(
+        "<!doctype html><html><head><meta charset=\"utf-8\" /><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /><title>{title}</title><style>body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#f8fafc 0%,#eef2ff 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a}} .card{{width:min(460px,calc(100vw - 32px));padding:28px 24px;border:1px solid rgba(15,23,42,.08);border-radius:24px;background:rgba(255,255,255,.92);box-shadow:0 24px 80px rgba(15,23,42,.12);text-align:center}} .dot{{width:12px;height:12px;border-radius:999px;background:{accent_color};margin:0 auto 16px auto;box-shadow:0 0 0 8px color-mix(in srgb,{accent_color} 14%, white)}} h2{{margin:0 0 10px 0;font-size:24px;line-height:1.2}} p{{margin:0;font-size:15px;line-height:1.6;color:#475569}}</style>{auto_close_script}</head><body><div class=\"card\"><div class=\"dot\"></div><h2>{title}</h2><p>{message}</p></div></body></html>"
+    )
 }
 
 fn response_error(response: Response) -> String {
@@ -612,6 +797,72 @@ pub fn sign_up(
     let session = session_from_envelope(&base_url, profile_payload, access_token, refresh_token)?;
     set_runtime_session(app, Some(session))
         .map_err(|error| friendly_auth_error("account creation", error))
+}
+
+pub fn start_oauth_sign_in(
+    app: &AppHandle,
+    provider: String,
+    requested_base_url: Option<String>,
+) -> Result<AuthStateSnapshot> {
+    let normalized_provider = provider.trim().to_lowercase();
+    if normalized_provider != "google" && normalized_provider != "github" {
+        return Err(anyhow!("Unsupported OAuth provider: {provider}"));
+    }
+
+    let base_url = resolve_auth_base_url(app, requested_base_url)?;
+    let listener =
+        TcpListener::bind("127.0.0.1:0").context("failed to start the local sign-in listener")?;
+    let callback_port = listener
+        .local_addr()
+        .context("failed to resolve the local sign-in listener")?
+        .port();
+    let desktop_redirect_uri = format!("http://127.0.0.1:{callback_port}/callback");
+    let client = http_client()?;
+    let start_response = client
+        .get(oauth_endpoint(&base_url, &normalized_provider, "start"))
+        .query(&[("desktop_redirect_uri", desktop_redirect_uri.as_str())])
+        .send()
+        .map_err(|error| anyhow!(friendly_network_error("OAuth sign-in setup", &error)))?;
+
+    if !start_response.status().is_success() {
+        return Err(anyhow!(response_error(start_response)));
+    }
+
+    let payload = start_response
+        .json::<OAuthStartResponse>()
+        .context("failed to parse OAuth sign-in start response")?;
+
+    open_browser(&payload.authorization_url)?;
+    let auth_code = wait_for_oauth_callback(listener)?;
+    let exchange_response = client
+        .post(endpoint(&base_url, "/auth/oauth/exchange"))
+        .json(&OAuthExchangePayload {
+            auth_code: auth_code.as_str(),
+        })
+        .send()
+        .map_err(|error| anyhow!(friendly_network_error("OAuth sign-in completion", &error)))?;
+
+    if !exchange_response.status().is_success() {
+        return Err(anyhow!(response_error(exchange_response)));
+    }
+
+    let exchange_payload = exchange_response
+        .json::<AuthEnvelope>()
+        .context("failed to parse OAuth exchange response")?;
+
+    let access_token = exchange_payload.access_token();
+    let refresh_token = exchange_payload.refresh_token.clone();
+    let profile_payload = if exchange_payload.user().is_some() {
+        exchange_payload
+    } else {
+        let token = access_token
+            .clone()
+            .ok_or_else(|| anyhow!("OAuth sign-in succeeded but no access token was returned."))?;
+        fetch_profile(&base_url, &token)?
+    };
+
+    let session = session_from_envelope(&base_url, profile_payload, access_token, refresh_token)?;
+    set_runtime_session(app, Some(session)).map_err(|error| friendly_auth_error("OAuth sign-in", error))
 }
 
 pub fn refresh_auth_state(

@@ -6,8 +6,19 @@ use argon2::{
     Argon2,
 };
 use rand::rngs::OsRng;
+use serde::Deserialize;
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use uuid::Uuid;
+
+#[derive(Debug, Deserialize)]
+struct SeedUser {
+    email: String,
+    password: String,
+    #[serde(rename = "firstName")]
+    first_name: String,
+    #[serde(rename = "lastName")]
+    last_name: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -35,6 +46,11 @@ async fn main() -> Result<()> {
         env::var("VOICEFLOW_DEMO_MEMBER_FIRST_NAME").unwrap_or_else(|_| "Demo".to_string());
     let member_last_name =
         env::var("VOICEFLOW_DEMO_MEMBER_LAST_NAME").unwrap_or_else(|_| "Member".to_string());
+
+    let additional_owners: Vec<SeedUser> =
+        parse_seed_users_env("VOICEFLOW_DEMO_ADDITIONAL_OWNERS_JSON")?;
+    let additional_members: Vec<SeedUser> =
+        parse_seed_users_env("VOICEFLOW_DEMO_ADDITIONAL_MEMBERS_JSON")?;
 
     let db = PgPoolOptions::new()
         .max_connections(5)
@@ -64,11 +80,68 @@ async fn main() -> Result<()> {
     )
     .await?;
 
+    for owner in &additional_owners {
+        ensure_user(
+            &db,
+            org_id,
+            &owner.email,
+            &owner.password,
+            &owner.first_name,
+            &owner.last_name,
+        )
+        .await?;
+    }
+
+    for member in &additional_members {
+        ensure_user(
+            &db,
+            org_id,
+            &member.email,
+            &member.password,
+            &member.first_name,
+            &member.last_name,
+        )
+        .await?;
+    }
+
     println!("Seeded org `{org_name}` with demo users.");
     println!("Owner:  {owner_email}");
     println!("Member: {member_email}");
+    println!("Extra owners: {}", additional_owners.len());
+    println!("Extra members: {}", additional_members.len());
 
     Ok(())
+}
+
+fn parse_seed_users_env(name: &str) -> Result<Vec<SeedUser>> {
+    let raw = match env::var(name) {
+        Ok(value) => value,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let users: Vec<SeedUser> =
+        serde_json::from_str(&raw).with_context(|| format!("{name} must be valid JSON"))?;
+
+    for (index, user) in users.iter().enumerate() {
+        if user.email.trim().is_empty() {
+            return Err(anyhow!("{name}[{index}].email must not be empty"));
+        }
+        if user.password.trim().is_empty() {
+            return Err(anyhow!("{name}[{index}].password must not be empty"));
+        }
+        if user.first_name.trim().is_empty() {
+            return Err(anyhow!("{name}[{index}].firstName must not be empty"));
+        }
+        if user.last_name.trim().is_empty() {
+            return Err(anyhow!("{name}[{index}].lastName must not be empty"));
+        }
+    }
+
+    Ok(users)
 }
 
 async fn ensure_org(db: &PgPool, org_name: &str) -> Result<Uuid> {

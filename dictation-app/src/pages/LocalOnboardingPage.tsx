@@ -1,6 +1,6 @@
 import { ArrowLeft, PartyPopper } from "lucide-react";
 import { motion } from "framer-motion";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import { BackgroundPaths } from "@/components/ui/background-paths";
@@ -267,6 +267,7 @@ function TestStage({
   const [isCompletionOpen, setIsCompletionOpen] = useState(false);
   const [pendingTestAction, setPendingTestAction] = useState<"starting" | "stopping" | null>(null);
   const [hasStartedTest, setHasStartedTest] = useState(false);
+  const previousSessionStateRef = useRef(sessionState.state);
   const isRecording = sessionState.state === "recording";
   const isBusy =
     sessionState.state === "transcribing" ||
@@ -294,10 +295,19 @@ function TestStage({
   const hotkeyLabel = hotkeyTokens(hotkey).join(" + ");
 
   useEffect(() => {
-    if (sessionState.state !== "idle") {
+    const previousState = previousSessionStateRef.current;
+    previousSessionStateRef.current = sessionState.state;
+
+    if (previousState === "idle" && sessionState.state !== "idle") {
       setHasStartedTest(true);
     }
   }, [sessionState.state]);
+
+  useEffect(() => {
+    setHasStartedTest(false);
+    setPendingTestAction(null);
+    previousSessionStateRef.current = sessionState.state;
+  }, []);
 
   useEffect(() => {
     if (!isRecordingActionPending) {

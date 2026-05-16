@@ -456,7 +456,7 @@ fn tray_summary(snapshot: Option<&SessionSnapshot>) -> String {
         ),
         _ => {
             if snapshot.used_cleanup_fallback {
-                return "Last: raw fallback used".to_string();
+                return "Last: transcript-only output".to_string();
             }
 
             if let Some(final_output) = snapshot.final_output.as_ref() {
@@ -513,7 +513,7 @@ fn tray_tooltip(mode_label: &str, snapshot: &SessionSnapshot) -> String {
         ),
         _ => {
             if snapshot.used_cleanup_fallback {
-                format!("{mode_label} · Raw fallback used")
+                format!("{mode_label} · Transcript-only output")
             } else if snapshot
                 .message
                 .to_lowercase()

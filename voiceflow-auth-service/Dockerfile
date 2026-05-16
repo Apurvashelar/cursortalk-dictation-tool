@@ -13,7 +13,7 @@ RUN cargo build --release --locked --bin voiceflow-auth-service --bin seed_demo_
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

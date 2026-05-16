@@ -1,6 +1,6 @@
 import { Copy } from "lucide-react";
 import { useState } from "react";
-import { VoiceFlowMark } from "../components/VoiceFlowMark";
+import { CursorTalkMark } from "../components/CursorTalkMark";
 import type { BackendHealth, SessionState } from "../api/backend";
 
 export type RecentActivityItem = {
@@ -58,6 +58,18 @@ function hotkeyTokens(hotkey: string) {
   });
 }
 
+function recentStatusDotTone(status: RecentActivityItem["status"]) {
+  switch (status) {
+    case "success":
+      return "bg-emerald-500";
+    case "fallback":
+      return "bg-amber-500";
+    case "error":
+    default:
+      return "bg-red-500";
+  }
+}
+
 function statusHero(
   sessionState: SessionState,
   selectedMode: "local" | "organization",
@@ -100,14 +112,14 @@ function statusHero(
   if (isOrganizationUnavailable) {
     return {
       title: "Not ready",
-      subtitle: "Server unreachable",
+      subtitle: "Workspace API unreachable",
     };
   }
 
   if (sessionState.used_cleanup_fallback) {
     return {
       title: "Ready to dictate",
-      subtitle: "Last dictation used the raw transcript fallback.",
+      subtitle: "Last dictation used transcript-only output.",
     };
   }
 
@@ -211,7 +223,7 @@ export function HomePage({
         <div className="flex flex-wrap items-center justify-between gap-5">
           <div className="flex items-center gap-4">
             <div className="grid h-10 w-10 place-items-center rounded-full border border-emerald-200 bg-emerald-100 text-emerald-600">
-              <VoiceFlowMark className="h-[22px] w-[22px]" />
+              <CursorTalkMark className="h-[22px] w-[22px]" />
             </div>
             <div>
               <h2 className="m-0 text-[16px] font-semibold tracking-[-0.03em] text-emerald-950">
@@ -267,9 +279,7 @@ export function HomePage({
                   key={item.id}
                 >
                   <span
-                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      item.status === "success" ? "bg-emerald-500" : "bg-red-500"
-                    }`}
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${recentStatusDotTone(item.status)}`}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900">{item.text}</p>

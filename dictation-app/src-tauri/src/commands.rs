@@ -74,6 +74,15 @@ pub fn sign_up(
 }
 
 #[tauri::command]
+pub fn start_oauth_sign_in(
+    app: AppHandle,
+    provider: String,
+    auth_base_url: Option<String>,
+) -> Result<auth::AuthStateSnapshot, String> {
+    auth::start_oauth_sign_in(&app, provider, auth_base_url).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn update_account_profile(
     app: AppHandle,
     first_name: String,
@@ -345,7 +354,7 @@ async fn check_backend_health_internal(cleanup_url: String, health_url: String) 
             status: "healthy".to_string(),
             endpoint: cleanup_url,
             health_url,
-            message: "Tunnel endpoint is reachable.".to_string(),
+            message: "Workspace API is reachable.".to_string(),
         },
         Ok(response) => BackendHealth {
             status: "degraded".to_string(),
@@ -357,9 +366,7 @@ async fn check_backend_health_internal(cleanup_url: String, health_url: String) 
             status: "unreachable".to_string(),
             endpoint: cleanup_url,
             health_url,
-            message: format!(
-                "Could not reach the forwarded backend. Start or verify the SSH tunnel. ({error})"
-            ),
+            message: format!("Could not reach the workspace API. Check the API URL and try again. ({error})"),
         },
     }
 }

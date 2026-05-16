@@ -1,6 +1,6 @@
 # Dictation App
 
-Enterprise-first macOS desktop client for the Enterprise Voice Dictation project.
+Enterprise-first macOS desktop client for CursorTalk.
 
 ## Current status
 
@@ -32,4 +32,3 @@ dictation-app/
 ├── src/
 └── src-tauri/
 ```
-

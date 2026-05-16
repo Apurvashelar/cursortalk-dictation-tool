@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Enterprise Voice Dictation",
+  "productName": "CursorTalk",
   "version": "0.1.0",
-  "identifier": "com.voiceflow.enterprise",
+  "identifier": "com.cursortalk.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Enterprise Voice Dictation",
+        "title": "CursorTalk",
         "width": 1200,
         "height": 820,
         "resizable": true
@@ -26,7 +26,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
+    "targets": ["app", "dmg"],
     "icon": ["icons/icon.png"],
     "macOS": {
       "files": {
