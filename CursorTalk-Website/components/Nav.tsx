@@ -24,14 +24,15 @@ export function Nav() {
 
   return (
     <nav
+      aria-label="Primary"
       className={cn(
         'fixed top-0 left-0 right-0 z-[100] transition-all duration-300',
         solid && 'bg-bg/85 backdrop-blur-2xl border-b border-border shadow-sm'
       )}
     >
       <div className="max-w-[1120px] mx-auto px-7 flex items-center justify-between py-3.5">
-        <a href="#" className="flex items-center gap-2.5 font-display font-bold text-[19px] text-ink">
-          <img src="/icon.png" alt="CursorTalk" className="w-[30px] h-[30px] rounded-lg flex-shrink-0" />
+        <a href="#" aria-label="CursorTalk home" className="flex items-center gap-2.5 font-display font-bold text-[19px] text-ink">
+          <img src="/icon.png" alt="CursorTalk logo" width={30} height={30} className="w-[30px] h-[30px] rounded-lg flex-shrink-0" />
           CursorTalk
         </a>
 
