@@ -827,6 +827,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "cursortalk-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "cpal",
+ "hound",
+ "keyring",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sherpa-rs",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-autostart",
+ "tauri-plugin-dialog",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-opener",
+ "winreg 0.52.0",
+]
+
+[[package]]
 name = "darling"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,31 +933,6 @@ dependencies = [
  "quote",
  "rustc_version",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "cursortalk-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "cpal",
- "hound",
- "keyring",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "sherpa-rs",
- "tauri",
- "tauri-build",
- "tauri-plugin-autostart",
- "tauri-plugin-dialog",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-opener",
- "winreg 0.52.0",
 ]
 
 [[package]]

@@ -74,6 +74,7 @@ type SettingsPageProps = {
   appVersion: string;
   activeSection: SettingsSection;
   authState: AuthState;
+  onEnableOrganizationMode: () => void;
   onOpenSignIn: () => void;
   onSaveAccountProfile: (profile: {
     firstName: string;
@@ -323,6 +324,7 @@ export function SettingsPage({
   appVersion,
   activeSection,
   authState,
+  onEnableOrganizationMode,
   onOpenSignIn,
   onSaveAccountProfile,
   onSignOut,
@@ -423,63 +425,18 @@ export function SettingsPage({
       return;
     }
 
-    if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
-      setMicTestState("error");
-      return;
-    }
-
     setMicLevel(0);
     setMicTestState("testing");
 
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const matchingDevice = devices.find(
-        (device) => device.kind === "audioinput" && device.label === selectedInput,
-      );
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: matchingDevice?.deviceId
-          ? { deviceId: { exact: matchingDevice.deviceId } }
-          : true,
-      });
-
-      const audioContext = new AudioContext();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      let peakLevel = 0;
-
-      const updateMeter = () => {
-        analyser.getByteTimeDomainData(data);
-        let sumSquares = 0;
-        for (const value of data) {
-          const normalized = (value - 128) / 128;
-          sumSquares += normalized * normalized;
-        }
-        const rms = Math.sqrt(sumSquares / data.length);
-        const scaledLevel = Math.min(1, rms * 6);
-        peakLevel = Math.max(peakLevel, scaledLevel);
-        setMicLevel(scaledLevel);
-        micTestAnimationRef.current = window.requestAnimationFrame(updateMeter);
-      };
-
-      updateMeter();
-
-      micTestTimeoutRef.current = window.setTimeout(async () => {
-        if (micTestAnimationRef.current !== null) {
-          window.cancelAnimationFrame(micTestAnimationRef.current);
-          micTestAnimationRef.current = null;
-        }
-        stream.getTracks().forEach((track) => track.stop());
-        await audioContext.close();
-        setMicTestState(peakLevel > 0.03 ? "success" : "error");
-        micTestTimeoutRef.current = window.setTimeout(() => {
-          setMicTestState("idle");
-          setMicLevel(0);
-        }, 1200);
-      }, 2000);
+      const matchingDevice = audioDevices.find((device) => device.name === selectedInput);
+      const isReady = permissionStatus.microphone.status === "ready";
+      setMicLevel(matchingDevice && isReady ? 1 : 0);
+      setMicTestState(matchingDevice && isReady ? "success" : "error");
+      micTestTimeoutRef.current = window.setTimeout(() => {
+        setMicTestState("idle");
+        setMicLevel(0);
+      }, 1200);
     } catch (error) {
       console.error("Failed to test microphone", error);
       setMicLevel(0);
@@ -518,19 +475,19 @@ export function SettingsPage({
                 </button>
                 <button
                   className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-all ${
-                    !allowOrganizationMode
-                      ? "cursor-not-allowed text-slate-400"
-                      : selectedMode === "organization"
-                        ? "bg-slate-950 text-white"
-                        : "text-slate-600 hover:text-slate-950"
+                    selectedMode === "organization"
+                      ? "bg-slate-950 text-white"
+                      : allowOrganizationMode
+                        ? "text-slate-600 hover:text-slate-950"
+                        : "text-slate-500 hover:text-slate-950"
                   }`}
-                  disabled={!allowOrganizationMode}
                   onClick={() => {
-                    if (!allowOrganizationMode) {
+                    if (allowOrganizationMode) {
+                      onModeChange("organization");
                       return;
                     }
 
-                    onModeChange("organization");
+                    onEnableOrganizationMode();
                   }}
                   type="button"
                 >
@@ -549,7 +506,7 @@ export function SettingsPage({
                   </div>
                   <button
                     className="rounded-lg border border-amber-800/15 bg-amber-900 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-amber-950"
-                    onClick={onOpenSignIn}
+                    onClick={onEnableOrganizationMode}
                     type="button"
                   >
                     Sign in
@@ -802,7 +759,7 @@ export function SettingsPage({
                     onClick={runMicTest}
                     type="button"
                   >
-                    {micTestState === "testing" ? "Testing..." : "Test mic"}
+                    {micTestState === "testing" ? "Checking..." : "Check mic"}
                   </button>
                 </div>
                 <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-200">
@@ -819,12 +776,12 @@ export function SettingsPage({
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
                   {micTestState === "testing"
-                    ? "Listening to the selected microphone..."
+                    ? "Checking the selected microphone..."
                     : micTestState === "success"
-                      ? "Microphone activity detected."
+                      ? "Selected microphone is available."
                       : micTestState === "error"
-                        ? "Microphone test failed."
-                        : "Run a quick test before dictating."}
+                        ? "Selected microphone is unavailable."
+                        : "Confirm the selected microphone is available before dictating."}
                 </p>
               </div>
             </div>

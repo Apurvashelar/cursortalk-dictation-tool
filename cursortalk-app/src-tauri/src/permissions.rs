@@ -1,10 +1,7 @@
-use std::{process::Command, thread, time::Duration};
+use std::process::Command;
 
 use anyhow::{anyhow, Context, Result};
-use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    SampleFormat, SampleRate, Stream, SupportedStreamConfig,
-};
+use cpal::traits::{DeviceTrait, HostTrait};
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
@@ -136,64 +133,13 @@ fn probe_microphone_access() -> Result<()> {
     let device = host
         .default_input_device()
         .ok_or_else(|| anyhow!("no microphone input device available"))?;
-    let config = preferred_input_config(&device)?;
-    let sample_format = config.sample_format();
-    let stream_config = config.config();
-
-    let error_callback = |_error| {};
-
-    let stream = match sample_format {
-        SampleFormat::F32 => build_probe_stream::<f32>(&device, &stream_config, error_callback)?,
-        SampleFormat::I16 => build_probe_stream::<i16>(&device, &stream_config, error_callback)?,
-        SampleFormat::U16 => build_probe_stream::<u16>(&device, &stream_config, error_callback)?,
-        other => {
-            return Err(anyhow!(
-                "unsupported microphone sample format during permission check: {other:?}"
-            ))
-        }
-    };
-
-    stream
-        .play()
-        .context("failed to start microphone stream during permission check")?;
-    thread::sleep(Duration::from_millis(120));
-    drop(stream);
-
+    device
+        .name()
+        .context("failed to inspect default microphone device")?;
+    device
+        .default_input_config()
+        .context("failed to inspect default microphone configuration")?;
     Ok(())
-}
-
-fn preferred_input_config(device: &cpal::Device) -> Result<SupportedStreamConfig> {
-    let preferred = device
-        .supported_input_configs()
-        .context("failed to query supported microphone configs")?
-        .find_map(|range| {
-            if range.channels() == 1
-                && range.min_sample_rate().0 <= 16_000
-                && range.max_sample_rate().0 >= 16_000
-            {
-                Some(range.with_sample_rate(SampleRate(16_000)))
-            } else {
-                None
-            }
-        });
-
-    preferred
-        .or_else(|| device.default_input_config().ok())
-        .ok_or_else(|| anyhow!("could not find a usable microphone input configuration"))
-}
-
-fn build_probe_stream<T>(
-    device: &cpal::Device,
-    config: &cpal::StreamConfig,
-    error_callback: impl FnMut(cpal::StreamError) + Send + 'static,
-) -> Result<Stream>
-where
-    T: cpal::SizedSample,
-    i16: cpal::FromSample<T>,
-{
-    let stream =
-        device.build_input_stream(config, move |_data: &[T], _| {}, error_callback, None)?;
-    Ok(stream)
 }
 
 fn looks_like_permission_error(message: &str) -> bool {

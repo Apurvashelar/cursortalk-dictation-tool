@@ -9,17 +9,12 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, Sample, SampleFormat, SampleRate, Stream, SupportedStreamConfig,
+    Device, Sample, SampleFormat, SampleRate, Stream, StreamConfig, SupportedStreamConfig,
 };
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
-
-use crate::{app_state::AppState, desktop_ui};
+use tauri::AppHandle;
 
 pub const RECORDING_ACTIVITY_EVENT: &str = "recording-activity-changed";
-
-const SPEECH_RMS_THRESHOLD: f32 = 0.006;
-const SILENT_CALLBACKS_BEFORE_IDLE: u8 = 3;
 
 #[derive(Clone, Serialize)]
 pub struct RecordingActivityPayload {
@@ -51,11 +46,23 @@ pub struct RecordingDetails {
 struct RecorderHandle {
     stream: Stream,
     writer: Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>,
-    path: PathBuf,
     device_name: String,
     sample_rate: u32,
     channels: u16,
+    sample_format: SampleFormat,
+    config: StreamConfig,
+}
+
+struct ActiveRecording {
+    path: PathBuf,
     started_at: Instant,
+}
+
+#[derive(Clone)]
+struct CachedInputConfig {
+    device_name: String,
+    sample_format: SampleFormat,
+    config: StreamConfig,
 }
 
 #[derive(Clone)]
@@ -99,123 +106,106 @@ pub fn list_input_devices() -> Result<Vec<AudioInputDevice>> {
     Ok(devices)
 }
 
-fn start_recording(app: AppHandle) -> Result<RecorderHandle> {
+fn prepare_recorder(
+    _app: AppHandle,
+    cached_config: Option<&CachedInputConfig>,
+) -> Result<(RecorderHandle, CachedInputConfig)> {
     let host = cpal::default_host();
-    let preferred_input_name = app
-        .state::<AppState>()
-        .runtime
-        .lock()
-        .ok()
-        .and_then(|runtime| runtime.preferred_audio_input.clone());
-    let device = choose_input_device(&host, preferred_input_name.as_deref())?;
-    let device_name = device
-        .name()
-        .unwrap_or_else(|_| "Unknown Input".to_string());
-    let supported_config = preferred_input_config(&device)?;
-    let sample_format = supported_config.sample_format();
-    let config = supported_config.config();
-
-    let recordings_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("debug-recordings");
-    fs::create_dir_all(&recordings_dir).context("failed to create recordings directory")?;
-
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .context("failed to calculate timestamp")?
-        .as_secs();
-    let path = recordings_dir.join(format!("recording-{timestamp}.wav"));
-
-    let writer = hound::WavWriter::create(
-        &path,
-        hound::WavSpec {
-            channels: config.channels,
-            sample_rate: config.sample_rate.0,
-            bits_per_sample: 16,
-            sample_format: hound::SampleFormat::Int,
-        },
-    )
-    .context("failed to create wav writer")?;
-
-    let writer = Arc::new(Mutex::new(Some(writer)));
-    let writer_for_stream = writer.clone();
-
-    let error_callback = |error| {
-        eprintln!("recording stream error: {error}");
-    };
-
-    let activity_state = Arc::new(Mutex::new(RecordingActivityState::default()));
-    let stream = match sample_format {
-        SampleFormat::F32 => build_stream::<f32>(
-            &device,
-            &config,
-            writer_for_stream,
-            app,
-            activity_state,
-            error_callback,
-        )?,
-        SampleFormat::I16 => build_stream::<i16>(
-            &device,
-            &config,
-            writer_for_stream,
-            app,
-            activity_state,
-            error_callback,
-        )?,
-        SampleFormat::U16 => build_stream::<u16>(
-            &device,
-            &config,
-            writer_for_stream,
-            app,
-            activity_state,
-            error_callback,
-        )?,
-        other => {
-            return Err(anyhow!("unsupported input sample format: {other:?}"));
-        }
-    };
-
-    stream.play().context("failed to start microphone stream")?;
-
-    Ok(RecorderHandle {
-        stream,
-        writer,
-        path,
-        device_name,
-        sample_rate: config.sample_rate.0,
-        channels: config.channels,
-        started_at: Instant::now(),
-    })
-}
-
-fn choose_input_device(host: &cpal::Host, preferred_name: Option<&str>) -> Result<Device> {
-    if let Some(preferred_name) = preferred_name {
-        let preferred_name = preferred_name.trim();
-        if !preferred_name.is_empty() {
-            for device in host
-                .input_devices()
-                .context("failed to enumerate input devices")?
-            {
-                let matches_preference = device
-                    .name()
-                    .map(|name| name == preferred_name)
-                    .unwrap_or(false);
-                if matches_preference {
-                    return Ok(device);
+    if let Some(cached_config) = cached_config {
+        if let Some(device) = find_input_device_by_name(&host, &cached_config.device_name)? {
+            match prepare_recorder_with_config(
+                device,
+                cached_config.sample_format,
+                cached_config.config.clone(),
+            ) {
+                Ok(handle) => return Ok((handle, cached_config.clone())),
+                Err(error) => {
+                    eprintln!(
+                        "failed to reopen cached microphone config for '{}': {error}",
+                        cached_config.device_name
+                    );
                 }
             }
         }
     }
 
-    host.default_input_device()
-        .ok_or_else(|| anyhow!("no microphone input device available"))
+    let device = host
+        .default_input_device()
+        .ok_or_else(|| anyhow!("no microphone input device available"))?;
+    prepare_recorder_for_device(device)
 }
 
-#[derive(Default)]
-struct RecordingActivityState {
-    is_speaking: bool,
-    silent_callbacks: u8,
+fn prepare_recorder_for_device(device: Device) -> Result<(RecorderHandle, CachedInputConfig)> {
+    let device_name = device
+        .name()
+        .unwrap_or_else(|_| "Unknown Input".to_string());
+    let writer = Arc::new(Mutex::new(None));
+    let (stream, sample_format, config) = build_recording_stream(&device, writer.clone())
+        .with_context(|| format!("failed to choose a stream config for '{device_name}'"))?;
+    let cached_config = CachedInputConfig {
+        device_name: device_name.clone(),
+        sample_format,
+        config: config.clone(),
+    };
+    stream
+        .play()
+        .with_context(|| format!("failed to start microphone stream for '{device_name}'"))?;
+
+    Ok((
+        RecorderHandle {
+            stream,
+            writer,
+            device_name,
+            sample_rate: config.sample_rate.0,
+            channels: config.channels,
+            sample_format,
+            config: config.clone(),
+        },
+        cached_config,
+    ))
+}
+
+fn prepare_recorder_with_config(
+    device: Device,
+    sample_format: SampleFormat,
+    config: StreamConfig,
+) -> Result<RecorderHandle> {
+    let device_name = device
+        .name()
+        .unwrap_or_else(|_| "Unknown Input".to_string());
+    let writer = Arc::new(Mutex::new(None));
+    let stream = build_stream_for_config(&device, sample_format, &config, writer.clone())
+        .with_context(|| format!("failed to reuse cached stream config for '{device_name}'"))?;
+    stream
+        .play()
+        .with_context(|| format!("failed to start microphone stream for '{device_name}'"))?;
+
+    Ok(RecorderHandle {
+        stream,
+        writer,
+        device_name,
+        sample_rate: config.sample_rate.0,
+        channels: config.channels,
+        sample_format,
+        config,
+    })
+}
+
+fn find_input_device_by_name(host: &cpal::Host, target_name: &str) -> Result<Option<Device>> {
+    for device in host
+        .input_devices()
+        .context("failed to enumerate input devices")?
+    {
+        let matches = device
+            .name()
+            .map(|name| name == target_name)
+            .unwrap_or(false);
+        if matches {
+            return Ok(Some(device));
+        }
+    }
+
+    Ok(None)
 }
 
 impl RecorderController {
@@ -223,21 +213,53 @@ impl RecorderController {
         let (sender, receiver) = mpsc::channel::<RecorderCommand>();
 
         std::thread::spawn(move || {
-            let mut recorder_handle: Option<RecorderHandle> = None;
+            let mut prepared_recorder: Option<RecorderHandle> = None;
+            let mut active_recording: Option<ActiveRecording> = None;
+            let mut cached_config: Option<CachedInputConfig> = None;
 
             while let Ok(command) = receiver.recv() {
                 match command {
                     RecorderCommand::Start { app, respond_to } => {
-                        let response = if recorder_handle.is_some() {
-                            Err(anyhow!("recording is already active"))
+                        let response = if active_recording.is_some() {
+                            let prepared = prepared_recorder
+                                .as_ref()
+                                .ok_or_else(|| anyhow!("recording is already active but recorder handle is missing"));
+                            prepared.map(|prepared| RecordingDetails {
+                                device_name: prepared.device_name.clone(),
+                                sample_rate: prepared.sample_rate,
+                                channels: prepared.channels,
+                            })
                         } else {
-                            start_recording(app).map(|handle| {
+                            if prepared_recorder.is_none() {
+                                match prepare_recorder(app.clone(), cached_config.as_ref()) {
+                                    Ok((prepared, next_cached_config)) => {
+                                        cached_config = Some(next_cached_config);
+                                        prepared_recorder = Some(prepared);
+                                    }
+                                    Err(error) => {
+                                        let _ = respond_to.send(Err(error));
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            activate_prepared_recorder(prepared_recorder.as_mut().unwrap())
+                                .or_else(|error| {
+                                    eprintln!("failed to activate prepared recorder: {error}");
+                                    let (prepared, next_cached_config) =
+                                        prepare_recorder(app, cached_config.as_ref())?;
+                                    cached_config = Some(next_cached_config);
+                                    prepared_recorder = Some(prepared);
+                                    activate_prepared_recorder(prepared_recorder.as_mut().unwrap())
+                                })
+                                .map(|active| {
+                                    let prepared = prepared_recorder.as_ref().unwrap();
                                 let details = RecordingDetails {
-                                    device_name: handle.device_name.clone(),
-                                    sample_rate: handle.sample_rate,
-                                    channels: handle.channels,
+                                        device_name: prepared.device_name.clone(),
+                                        sample_rate: prepared.sample_rate,
+                                        channels: prepared.channels,
                                 };
-                                recorder_handle = Some(handle);
+                                    active_recording = Some(active);
                                 details
                             })
                         };
@@ -245,8 +267,8 @@ impl RecorderController {
                         let _ = respond_to.send(response);
                     }
                     RecorderCommand::Stop { respond_to } => {
-                        let response = if let Some(handle) = recorder_handle.take() {
-                            handle.stop()
+                        let response = if let Some(active) = active_recording.take() {
+                            stop_active_recording(prepared_recorder.as_mut(), active)
                         } else {
                             Err(anyhow!("recording is not active"))
                         };
@@ -282,29 +304,102 @@ impl RecorderController {
 }
 
 impl RecorderHandle {
-    pub fn stop(self) -> Result<RecordingSummary> {
-        drop(self.stream);
+}
 
-        let mut writer = self
+fn activate_prepared_recorder(prepared: &mut RecorderHandle) -> Result<ActiveRecording> {
+    let recordings_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
+        .join("debug-recordings");
+    fs::create_dir_all(&recordings_dir).context("failed to create recordings directory")?;
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("failed to calculate timestamp")?
+        .as_secs();
+    let path = recordings_dir.join(format!("recording-{timestamp}.wav"));
+
+    let wav_writer = hound::WavWriter::create(
+        &path,
+        hound::WavSpec {
+            channels: prepared.channels,
+            sample_rate: prepared.sample_rate,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        },
+    )
+    .context("failed to create wav writer")?;
+
+    {
+        let mut guard = prepared
             .writer
             .lock()
             .map_err(|_| anyhow!("failed to lock wav writer"))?;
-        let writer = writer
-            .take()
-            .ok_or_else(|| anyhow!("recording writer was not available"))?;
-        writer.finalize().context("failed to finalize recording")?;
-
-        Ok(RecordingSummary {
-            path: self.path.display().to_string(),
-            device_name: self.device_name,
-            sample_rate: self.sample_rate,
-            channels: self.channels,
-            duration_ms: self.started_at.elapsed().as_millis() as u64,
-        })
+        *guard = Some(wav_writer);
     }
+
+    Ok(ActiveRecording {
+        path,
+        started_at: Instant::now(),
+    })
 }
 
-fn preferred_input_config(device: &Device) -> Result<SupportedStreamConfig> {
+fn stop_active_recording(
+    prepared: Option<&mut RecorderHandle>,
+    active: ActiveRecording,
+) -> Result<RecordingSummary> {
+    let prepared = prepared.ok_or_else(|| anyhow!("prepared recorder was not available"))?;
+
+    let mut writer = prepared
+        .writer
+        .lock()
+        .map_err(|_| anyhow!("failed to lock wav writer"))?;
+    let writer = writer
+        .take()
+        .ok_or_else(|| anyhow!("recording writer was not available"))?;
+    writer.finalize().context("failed to finalize recording")?;
+
+    Ok(RecordingSummary {
+        path: active.path.display().to_string(),
+        device_name: prepared.device_name.clone(),
+        sample_rate: prepared.sample_rate,
+        channels: prepared.channels,
+        duration_ms: active.started_at.elapsed().as_millis() as u64,
+    })
+}
+
+fn build_recording_stream(
+    device: &Device,
+    writer: Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>,
+) -> Result<(Stream, SampleFormat, StreamConfig)> {
+    let mut attempts = Vec::new();
+
+    if let Ok(default_config) = device.default_input_config() {
+        let sample_format = default_config.sample_format();
+        let config = default_config.config();
+        match build_stream_for_config(device, sample_format, &config, writer.clone()) {
+            Ok(stream) => return Ok((stream, sample_format, config)),
+            Err(error) => attempts.push(describe_attempt(sample_format, &config, &error)),
+        }
+    }
+
+    for supported_config in fallback_input_configs(device)? {
+        let sample_format = supported_config.sample_format();
+        let config = supported_config.config();
+        match build_stream_for_config(device, sample_format, &config, writer.clone()) {
+            Ok(stream) => return Ok((stream, sample_format, config)),
+            Err(error) => attempts.push(describe_attempt(sample_format, &config, &error)),
+        }
+    }
+
+    Err(anyhow!(
+        "failed to open microphone input stream with a usable configuration. attempted: {}",
+        attempts.join(" | ")
+    ))
+}
+
+fn fallback_input_configs(device: &Device) -> Result<Vec<SupportedStreamConfig>> {
+    let mut candidates = Vec::new();
     let preferred = device
         .supported_input_configs()
         .context("failed to query supported microphone configs")?
@@ -319,17 +414,44 @@ fn preferred_input_config(device: &Device) -> Result<SupportedStreamConfig> {
             }
         });
 
-    preferred
-        .or_else(|| device.default_input_config().ok())
-        .ok_or_else(|| anyhow!("could not find a usable microphone input configuration"))
+    if let Some(config) = preferred {
+        candidates.push(config);
+    }
+
+    Ok(candidates)
+}
+
+fn build_stream_for_config(
+    device: &Device,
+    sample_format: SampleFormat,
+    config: &StreamConfig,
+    writer: Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>,
+) -> Result<Stream> {
+    let error_callback = |_error| {};
+
+    match sample_format {
+        SampleFormat::F32 => build_stream::<f32>(device, config, writer, error_callback),
+        SampleFormat::I16 => build_stream::<i16>(device, config, writer, error_callback),
+        SampleFormat::U16 => build_stream::<u16>(device, config, writer, error_callback),
+        other => {
+            Err(anyhow!("unsupported input sample format: {other:?}"))
+        }
+    }
+}
+
+fn describe_attempt(sample_format: SampleFormat, config: &StreamConfig, error: &anyhow::Error) -> String {
+    format!(
+        "{sample_format:?} {}ch @ {}Hz: {}",
+        config.channels,
+        config.sample_rate.0,
+        error
+    )
 }
 
 fn build_stream<T>(
     device: &Device,
     config: &cpal::StreamConfig,
     writer: Arc<Mutex<Option<hound::WavWriter<BufWriter<File>>>>>,
-    app: AppHandle,
-    activity_state: Arc<Mutex<RecordingActivityState>>,
     error_callback: impl FnMut(cpal::StreamError) + Send + 'static,
 ) -> Result<Stream>
 where
@@ -341,54 +463,9 @@ where
         move |data: &[T], _: &cpal::InputCallbackInfo| {
             if let Ok(mut writer_guard) = writer.lock() {
                 if let Some(writer) = writer_guard.as_mut() {
-                    let mut sum_squares = 0.0_f32;
-                    let mut sample_count = 0_usize;
                     for &sample in data {
                         let value: i16 = i16::from_sample(sample);
                         let _ = writer.write_sample(value);
-                        let normalized = value as f32 / i16::MAX as f32;
-                        sum_squares += normalized * normalized;
-                        sample_count += 1;
-                    }
-
-                    if sample_count > 0 {
-                        let rms = (sum_squares / sample_count as f32).sqrt();
-                        let speaking_now = rms >= SPEECH_RMS_THRESHOLD;
-                        if let Ok(mut activity_guard) = activity_state.lock() {
-                            if speaking_now {
-                                activity_guard.silent_callbacks = 0;
-                                if !activity_guard.is_speaking {
-                                    activity_guard.is_speaking = true;
-                                    if let Ok(mut pill) =
-                                        app.state::<crate::app_state::AppState>().pill.lock()
-                                    {
-                                        pill.is_speaking = true;
-                                    }
-                                    let _ = app.emit(
-                                        RECORDING_ACTIVITY_EVENT,
-                                        RecordingActivityPayload { is_speaking: true },
-                                    );
-                                    desktop_ui::emit_recording_pill_update(&app);
-                                }
-                            } else if activity_guard.is_speaking {
-                                activity_guard.silent_callbacks =
-                                    activity_guard.silent_callbacks.saturating_add(1);
-                                if activity_guard.silent_callbacks >= SILENT_CALLBACKS_BEFORE_IDLE {
-                                    activity_guard.is_speaking = false;
-                                    activity_guard.silent_callbacks = 0;
-                                    if let Ok(mut pill) =
-                                        app.state::<crate::app_state::AppState>().pill.lock()
-                                    {
-                                        pill.is_speaking = false;
-                                    }
-                                    let _ = app.emit(
-                                        RECORDING_ACTIVITY_EVENT,
-                                        RecordingActivityPayload { is_speaking: false },
-                                    );
-                                    desktop_ui::emit_recording_pill_update(&app);
-                                }
-                            }
-                        }
                     }
                 }
             }

@@ -28,6 +28,7 @@ type OrganizationOnboardingPageProps = {
   onCheckConnection: () => void;
   onRefreshPermissions: () => void;
   onOpenPermissionSettings: (permission: "microphone" | "accessibility") => void;
+  continueActionLabel: string;
   onContinueToAuth: () => void;
   onComplete: () => void;
   onStartRecording: () => void;
@@ -79,12 +80,12 @@ export function OrganizationOnboardingPage({
   onCheckConnection,
   onRefreshPermissions,
   onOpenPermissionSettings,
+  continueActionLabel,
   onContinueToAuth,
   onComplete,
   onStartRecording,
   onStopRecording,
 }: OrganizationOnboardingPageProps) {
-  const [isDemoVisible, setIsDemoVisible] = useState(false);
   const [isCompletionOpen, setIsCompletionOpen] = useState(false);
   const [pendingTestAction, setPendingTestAction] = useState<"starting" | "stopping" | null>(null);
   const [hasStartedTest, setHasStartedTest] = useState(false);
@@ -273,7 +274,7 @@ export function OrganizationOnboardingPage({
                     onClick={onContinueToAuth}
                     type="button"
                   >
-                    Continue to sign in
+                    {continueActionLabel}
                   </button>
                   <button
                     className="rounded-2xl border border-black/10 px-6 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-black/20 hover:text-slate-900"
@@ -356,17 +357,6 @@ export function OrganizationOnboardingPage({
                       Stop recording
                     </button>
                   ) : null}
-                  <button
-                    className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:bg-slate-900 ${
-                      isDemoVisible
-                        ? "border-slate-950 bg-slate-950 text-white"
-                        : "border-black/10 text-slate-700 hover:border-slate-950 hover:bg-slate-950 hover:text-white"
-                    }`}
-                    onClick={() => setIsDemoVisible((current) => !current)}
-                    type="button"
-                  >
-                    {isDemoVisible ? "Hide demo" : "Quick demo"}
-                  </button>
                   <Button
                     className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm text-white hover:bg-slate-900 active:bg-slate-800"
                     onClick={() => setIsCompletionOpen(true)}
@@ -374,20 +364,6 @@ export function OrganizationOnboardingPage({
                     Looks perfect
                   </Button>
                 </div>
-
-                {isDemoVisible ? (
-                  <div className="mt-8 overflow-hidden rounded-[28px] border border-black/10 bg-black shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
-                    <video
-                      autoPlay
-                      className="h-[320px] w-full object-cover"
-                      controls
-                      loop
-                      muted
-                      playsInline
-                      src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
-                    />
-                  </div>
-                ) : null}
               </>
             )}
           </div>

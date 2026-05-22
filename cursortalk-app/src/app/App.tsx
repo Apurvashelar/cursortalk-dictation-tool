@@ -164,13 +164,13 @@ function usageStatsFromSummary(summary: DictationLogSummary | null, loggingEnabl
 }
 
 async function browserMicrophonePermissionState(
-  promptForAccess: boolean,
+  _promptForAccess: boolean,
 ): Promise<PermissionStatusReport["microphone"] | null> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+  if (typeof navigator === "undefined") {
     return null;
   }
 
-  if (!promptForAccess && "permissions" in navigator && navigator.permissions?.query) {
+  if ("permissions" in navigator && navigator.permissions?.query) {
     try {
       const status = await navigator.permissions.query({
         name: "microphone" as PermissionName,
@@ -188,42 +188,15 @@ async function browserMicrophonePermissionState(
         return {
           status: "needs_access",
           label: "Allow access",
-          message: "Allow Microphone access so Voice Dictation can capture speech.",
+          message: "Allow Microphone access so CursorTalk can capture speech.",
         };
       }
     } catch {
-      // Fall through to the native/backend probe if the Permissions API is unavailable.
+      return null;
     }
   }
 
-  if (!promptForAccess) {
-    return null;
-  }
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach((track) => track.stop());
-    return {
-      status: "ready",
-      label: "Granted",
-      message: "Microphone access is available for recording.",
-    };
-  } catch (error) {
-    const normalized = String(error).toLowerCase();
-    const needsAccess =
-      normalized.includes("notallowederror") ||
-      normalized.includes("permission denied") ||
-      normalized.includes("permissiondismissederror") ||
-      normalized.includes("security");
-
-    return {
-      status: needsAccess ? "needs_access" : "error",
-      label: needsAccess ? "Allow access" : "Needs attention",
-      message: needsAccess
-        ? "Allow Microphone access so Voice Dictation can capture speech."
-        : `Microphone access could not be confirmed. ${String(error)}`,
-    };
-  }
+  return null;
 }
 
 function mergePermissionReport(
@@ -323,7 +296,9 @@ export function App() {
   });
   const [authState, setAuthState] = useState<AuthState>(defaultAuthState);
   const [authEntryPoint, setAuthEntryPoint] = useState<"onboarding" | "settings">("onboarding");
-  const [postAuthStep, setPostAuthStep] = useState<"mode" | "organization_test">("mode");
+  const [postAuthStep, setPostAuthStep] = useState<
+    "mode" | "organization_test" | "organization_enable"
+  >("mode");
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<"local" | "organization">(() => {
@@ -379,6 +354,7 @@ export function App() {
   const [organizationSetupEntryPoint, setOrganizationSetupEntryPoint] = useState<
     "onboarding" | "settings"
   >("onboarding");
+  const [pendingOrganizationEnable, setPendingOrganizationEnable] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
@@ -407,6 +383,12 @@ export function App() {
   function buildCleanupHealthUrl(baseUrl: string) {
     const normalized = normalizeBaseUrl(baseUrl);
     return normalized ? `${normalized}/cleanup-health` : "";
+  }
+
+  function hasUsableOrganizationConfig(
+    status: "idle" | "checking" | "unknown" | "healthy" | "degraded" | "unreachable" = organizationSetupStatus,
+  ) {
+    return Boolean(normalizeBaseUrl(organizationBaseUrl)) && (status === "healthy" || status === "degraded");
   }
 
   function resolveAuthBaseUrlForClient() {
@@ -1093,6 +1075,7 @@ export function App() {
     setCurrentPage(organizationSetupEntryPoint === "settings" ? "settings" : "home");
     setSettingsSection("general");
     setOrganizationSetupEntryPoint("onboarding");
+    setPendingOrganizationEnable(false);
   }
 
   function beginLocalOnboarding() {
@@ -1113,8 +1096,24 @@ export function App() {
     setOnboardingStep("organization_setup");
   }
 
+  async function enableOrganizationModeFromSettings() {
+    applySelectedMode("organization");
+    await invoke("set_dictation_test_mode", { enabled: false }).catch((error) => {
+      console.error("Failed to disable organization test mode", error);
+    });
+    window.localStorage.setItem(SELECTED_MODE_KEY, "organization");
+    setOnboardingStep(null);
+    setCurrentPage("settings");
+    setSettingsSection("general");
+    setOrganizationSetupEntryPoint("onboarding");
+    setPendingOrganizationEnable(false);
+    setAuthError(null);
+    setPostAuthStep("mode");
+  }
+
   async function continueWithLocalMode() {
     setAuthError(null);
+    setPendingOrganizationEnable(false);
     setSelectedMode("local");
     await invoke("set_dictation_test_mode", { enabled: false }).catch((error) => {
       console.error("Failed to disable dictation test mode", error);
@@ -1134,31 +1133,32 @@ export function App() {
 
   function handleModeChange(mode: "local" | "organization") {
     if (mode === "local") {
+      setPendingOrganizationEnable(false);
       applySelectedMode("local");
       return;
     }
 
-    if (!hasOrganizationAccess) {
-      setAuthError(null);
+    setPendingOrganizationEnable(true);
+
+    if (!hasUsableOrganizationConfig()) {
       openOrganizationSetup("settings");
       return;
     }
 
-    const hasUsableOrganizationConfig =
-      Boolean(normalizeBaseUrl(organizationBaseUrl)) &&
-      (organizationSetupStatus === "healthy" || organizationSetupStatus === "degraded");
-
-    if (hasUsableOrganizationConfig) {
-      applySelectedMode("organization");
+    if (!hasOrganizationAccess) {
+      setAuthEntryPoint("settings");
+      setPostAuthStep("organization_enable");
+      setAuthError(null);
+      setOnboardingStep("auth");
       return;
     }
 
-    openOrganizationSetup("settings");
+    void enableOrganizationModeFromSettings();
   }
 
   function skipAuthentication() {
     setAuthError(null);
-    if (postAuthStep === "organization_test") {
+    if (postAuthStep === "organization_test" || postAuthStep === "organization_enable") {
       void continueWithLocalMode();
       setPostAuthStep("mode");
       return;
@@ -1187,6 +1187,20 @@ export function App() {
         setAuthError(null);
         setOrganizationSetupEntryPoint(authEntryPoint);
         setOnboardingStep("organization_test");
+      } else {
+        setAuthError(
+          "This account is not associated with a workspace organization. Sign in with workspace credentials or continue with Personal mode.",
+        );
+        setOnboardingStep("auth");
+      }
+    } else if (postAuthStep === "organization_enable") {
+      if (nextState.organization_id) {
+        setAuthError(null);
+        if (hasUsableOrganizationConfig()) {
+          void enableOrganizationModeFromSettings();
+        } else {
+          openOrganizationSetup("settings");
+        }
       } else {
         setAuthError(
           "This account is not associated with a workspace organization. Sign in with workspace credentials or continue with Personal mode.",
@@ -1301,6 +1315,21 @@ export function App() {
         healthUrl: nextHealth.health_url,
         message: nextHealth.message,
       });
+
+      if (
+        pendingOrganizationEnable &&
+        organizationSetupEntryPoint === "settings" &&
+        (nextHealth.status === "healthy" || nextHealth.status === "degraded")
+      ) {
+        if (hasOrganizationAccess) {
+          await enableOrganizationModeFromSettings();
+        } else {
+          setAuthEntryPoint("settings");
+          setPostAuthStep("organization_enable");
+          setAuthError(null);
+          setOnboardingStep("auth");
+        }
+      }
     } catch (error) {
       setOrganizationSetupStatus("unreachable");
       setOrganizationSetupMessage(`Connection check failed. ${String(error)}`);
@@ -1350,7 +1379,7 @@ export function App() {
     if (onboardingStep === "auth") {
       return (
         <AuthOnboardingPage
-          allowGoogleSignIn={postAuthStep !== "organization_test"}
+          allowGoogleSignIn={postAuthStep !== "organization_test" && postAuthStep !== "organization_enable"}
           errorMessage={authError}
           isSubmitting={isSubmittingAuth}
           onBack={() => {
@@ -1362,13 +1391,21 @@ export function App() {
               return;
             }
 
-            setOnboardingStep(postAuthStep === "organization_test" ? "organization_setup" : "welcome");
+            setOnboardingStep(
+              postAuthStep === "organization_test" || postAuthStep === "organization_enable"
+                ? "organization_setup"
+                : "welcome",
+            );
           }}
           onGoogleSignIn={() => handleSocialSignIn("google")}
           onSignIn={handleSignIn}
           onSignUp={handleSignUp}
           onSkip={skipAuthentication}
-          skipLabel={postAuthStep === "organization_test" ? "Continue with Personal mode" : "Skip for now"}
+          skipLabel={
+            postAuthStep === "organization_test" || postAuthStep === "organization_enable"
+              ? "Continue with Personal mode"
+              : "Skip for now"
+          }
         />
       );
     }
@@ -1400,9 +1437,23 @@ export function App() {
             setOrganizationSetupMessage("Enter your workspace API URL, then verify the connection.");
           }}
           onCheckConnection={checkOrganizationConnection}
+          continueActionLabel={
+            organizationSetupEntryPoint === "settings" && hasOrganizationAccess
+              ? "Enable Enterprise"
+              : "Continue to sign in"
+          }
           onContinueToAuth={() => {
+            if (organizationSetupEntryPoint === "settings" && hasOrganizationAccess) {
+              void enableOrganizationModeFromSettings();
+              return;
+            }
+
             setAuthEntryPoint(organizationSetupEntryPoint);
-            setPostAuthStep("organization_test");
+            setPostAuthStep(
+              organizationSetupEntryPoint === "settings"
+                ? "organization_enable"
+                : "organization_test",
+            );
             setAuthError(null);
             setOnboardingStep("auth");
           }}
@@ -1693,6 +1744,7 @@ export function App() {
               appVersion={APP_VERSION}
               activeSection={settingsSection}
               authState={authState}
+              onEnableOrganizationMode={() => handleModeChange("organization")}
               onOpenSignIn={openAuthenticationFromSettings}
               onSaveAccountProfile={async (profile) => {
                 const nextState = await invoke<AuthState>("update_account_profile", {
