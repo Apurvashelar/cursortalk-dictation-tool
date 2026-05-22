@@ -339,18 +339,6 @@ npm run build
 npm run synth
 ```
 
-
-## Current product summary
-
-CursorTalk is a dictation-focused product with:
-
-- a website for positioning and distribution
-- a desktop app for day-to-day usage
-- a local-first path for individuals
-- an organization-hosted path for enterprises
-- a deterministic cleanup pipeline rather than a chatbot workflow
-- an AWS/CDK layer for customer-managed deployment
-
 The core product idea stays the same across all of it:
 
 **speak naturally, get polished writing back, and keep control over where the intelligence runs.**
