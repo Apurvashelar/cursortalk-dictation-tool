@@ -18,6 +18,10 @@ The product is designed around one workflow:
 4. get cleaned, usable text back
 
 
+## Product Demo
+
+![CursorTalk Demo](./README-assets/demo.gif)
+
 ## What makes CursorTalk different
 
 Most products in this space either:
@@ -124,6 +128,14 @@ The desktop experience remains simple, but the control model is much stronger fo
 - backend runtime stays inside customer-controlled infrastructure
 
 ## End-to-end dictation pipeline
+
+## Architecture Diagram
+
+![CursorTalk Architecture](./README-assets/architecture-diagram.png)
+
+## Architecture Walkthrough Video
+
+[Watch the architecture walkthrough](./README-assets/architecture-video.mp4)
 
 ### Personal Mode pipeline
 
