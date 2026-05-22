@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cursortalk.example/schemas/customer-config.schema.json",
+  "title": "CursorTalk Customer Config",
+  "description": "Customer-owned deployment inputs for the first enterprise IaC release.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "projectName",
+    "environment",
+    "region",
+    "adminEmail",
+    "domainName",
+    "authImageUri",
+    "cleanupImageUri",
+    "cleanupModelS3Uri"
+  ],
+  "properties": {
+    "projectName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 32,
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Short lowercase project prefix used in stack and resource naming.",
+      "default": "cursortalk"
+    },
+    "environment": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 16,
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Deployment environment name such as prod, staging, or demo.",
+      "default": "prod"
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[a-z]{2}-[a-z]+-[0-9]$",
+      "description": "AWS region to deploy into.",
+      "default": "us-east-1"
+    },
+    "adminEmail": {
+      "type": "string",
+      "format": "email",
+      "description": "Bootstrap admin email for org seeding and ownership."
+    },
+    "domainName": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Public API hostname, for example api.acme.com."
+    },
+    "createRoute53Record": {
+      "type": "boolean",
+      "description": "Whether the stack should create the public DNS record in Route 53.",
+      "default": false
+    },
+    "hostedZoneName": {
+      "type": "string",
+      "description": "Route 53 hosted zone name, required when createRoute53Record is true or certificateMode is create."
+    },
+    "hostedZoneId": {
+      "type": "string",
+      "description": "Route 53 hosted zone ID, required when createRoute53Record is true or certificateMode is create."
+    },
+    "vpcMode": {
+      "type": "string",
+      "enum": [
+        "create",
+        "existing"
+      ],
+      "description": "Whether to create a new VPC or import an existing one.",
+      "default": "create"
+    },
+    "existingVpcId": {
+      "type": "string",
+      "pattern": "^vpc-[a-z0-9]+$",
+      "description": "Existing VPC ID when vpcMode is existing."
+    },
+    "existingPublicSubnetIds": {
+      "type": "array",
+      "description": "Existing public subnet IDs when vpcMode is existing. These must span at least 2 AZs, belong to the configured VPC, and auto-assign public IPs.",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "pattern": "^subnet-[a-z0-9]+$"
+      }
+    },
+    "existingPrivateSubnetIds": {
+      "type": "array",
+      "description": "Existing private subnet IDs when vpcMode is existing. These must span at least 2 AZs, belong to the configured VPC, not auto-assign public IPs, and provide outbound egress.",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "pattern": "^subnet-[a-z0-9]+$"
+      }
+    },
+    "albMode": {
+      "type": "string",
+      "enum": [
+        "create",
+        "existing"
+      ],
+      "description": "Whether to create a public ALB or attach to an existing public ALB.",
+      "default": "create"
+    },
+    "existingAlbArn": {
+      "type": "string",
+      "pattern": "^arn:aws[a-z-]*:elasticloadbalancing:.*:loadbalancer/app/.+$",
+      "description": "Existing public ALB ARN when albMode is existing."
+    },
+    "existingAlbHttpsListenerArn": {
+      "type": "string",
+      "pattern": "^arn:aws[a-z-]*:elasticloadbalancing:.*:listener/app/.+$",
+      "description": "Existing HTTPS listener ARN when albMode is existing."
+    },
+    "existingAlbSecurityGroupId": {
+      "type": "string",
+      "pattern": "^sg-[a-z0-9]+$",
+      "description": "Existing public ALB security group ID when albMode is existing."
+    },
+    "existingAlbDnsName": {
+      "type": "string",
+      "description": "Existing public ALB DNS name when albMode is existing and Route 53 alias creation is desired."
+    },
+    "existingAlbCanonicalHostedZoneId": {
+      "type": "string",
+      "description": "Existing public ALB canonical hosted zone ID when albMode is existing and Route 53 alias creation is desired."
+    },
+    "certificateMode": {
+      "type": "string",
+      "enum": [
+        "existing",
+        "create"
+      ],
+      "description": "Whether to use an existing ACM certificate or request a new one.",
+      "default": "existing"
+    },
+    "existingCertificateArn": {
+      "type": "string",
+      "pattern": "^arn:aws[a-z-]*:acm:.*:certificate/.+$",
+      "description": "Existing ACM certificate ARN when certificateMode is existing."
+    },
+    "databaseMode": {
+      "type": "string",
+      "enum": [
+        "create",
+        "existing"
+      ],
+      "description": "Whether to create a new RDS database or use an existing database secret.",
+      "default": "create"
+    },
+    "dbInstanceType": {
+      "type": "string",
+      "description": "RDS instance type when databaseMode is create.",
+      "default": "db.t4g.micro"
+    },
+    "existingDatabaseSecretArn": {
+      "type": "string",
+      "pattern": "^arn:aws[a-z-]*:secretsmanager:.*:secret:.+$",
+      "description": "Secrets Manager ARN containing DATABASE_URL when databaseMode is existing."
+    },
+    "gpuInstanceType": {
+      "type": "string",
+      "description": "GPU instance type for cleanup and vLLM.",
+      "default": "g5.xlarge"
+    },
+    "authImageUri": {
+      "type": "string",
+      "pattern": "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com\\/.+:.+$",
+      "description": "Auth image URI in the client's ECR. This is produced by the artifact publishing step before infrastructure deploy."
+    },
+    "cleanupImageUri": {
+      "type": "string",
+      "pattern": "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com\\/.+:.+$",
+      "description": "Cleanup image URI in the client's ECR. This is produced by the artifact publishing step before infrastructure deploy."
+    },
+    "cleanupModelS3Uri": {
+      "type": "string",
+      "pattern": "^s3:\\/\\/.+",
+      "description": "S3 URI for the cleanup model bootstrap artifact. This should already exist before infrastructure deploy."
+    },
+    "demoSeed": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Demo organization seed inputs provided in the customer deployment config.",
+      "required": [
+        "orgName",
+        "ownerEmail",
+        "ownerFirstName",
+        "ownerLastName",
+        "ownerPassword",
+        "memberEmail",
+        "memberFirstName",
+        "memberLastName",
+        "memberPassword"
+      ],
+      "properties": {
+        "orgName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Demo organization name to create after deploy."
+        },
+        "ownerEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Primary owner login email for the demo organization."
+        },
+        "ownerFirstName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Primary owner first name."
+        },
+        "ownerLastName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Primary owner last name."
+        },
+        "ownerPassword": {
+          "type": "string",
+          "minLength": 8,
+          "description": "Primary owner password used during demo org seeding."
+        },
+        "memberEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Secondary member login email for the demo organization."
+        },
+        "memberFirstName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Secondary member first name."
+        },
+        "memberLastName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Secondary member last name."
+        },
+        "memberPassword": {
+          "type": "string",
+          "minLength": 8,
+          "description": "Secondary member password used during demo org seeding."
+        },
+        "additionalOwners": {
+          "type": "array",
+          "description": "Optional extra owner users to seed into the same organization.",
+          "items": {
+            "$ref": "#/$defs/seedUser"
+          }
+        },
+        "additionalMembers": {
+          "type": "array",
+          "description": "Optional extra member users to seed into the same organization.",
+          "items": {
+            "$ref": "#/$defs/seedUser"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "seedUser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "email",
+        "firstName",
+        "lastName",
+        "password"
+      ],
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lastName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "createRoute53Record": {
+            "const": true
+          }
+        },
+        "required": [
+          "createRoute53Record"
+        ]
+      },
+      "then": {
+        "required": [
+          "hostedZoneName",
+          "hostedZoneId"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "vpcMode": {
+            "const": "existing"
+          }
+        },
+        "required": [
+          "vpcMode"
+        ]
+      },
+      "then": {
+        "required": [
+          "existingVpcId",
+          "existingPublicSubnetIds",
+          "existingPrivateSubnetIds"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "createRoute53Record": {
+            "const": true
+          },
+          "albMode": {
+            "const": "existing"
+          }
+        },
+        "required": [
+          "createRoute53Record",
+          "albMode"
+        ]
+      },
+      "then": {
+        "required": [
+          "existingAlbDnsName",
+          "existingAlbCanonicalHostedZoneId"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "albMode": {
+            "const": "existing"
+          }
+        },
+        "required": [
+          "albMode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "vpcMode": {
+            "const": "existing"
+          },
+          "certificateMode": {
+            "const": "existing"
+          }
+        },
+        "required": [
+          "vpcMode",
+          "certificateMode"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "certificateMode": {
+            "const": "existing"
+          },
+          "albMode": {
+            "const": "create"
+          }
+        },
+        "required": [
+          "certificateMode",
+          "albMode"
+        ]
+      },
+      "then": {
+        "required": [
+          "existingCertificateArn"
+        ]
+      },
+      "else": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "certificateMode": {
+                  "const": "create"
+                },
+                "albMode": {
+                  "const": "create"
+                }
+              },
+              "required": [
+                "certificateMode",
+                "albMode"
+              ]
+            },
+            "then": {
+              "required": [
+                "hostedZoneName",
+                "hostedZoneId"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "databaseMode": {
+            "const": "existing"
+          }
+        },
+        "required": [
+          "databaseMode"
+        ]
+      },
+      "then": {
+        "required": [
+          "existingDatabaseSecretArn"
+        ]
+      }
+    }
+  ]
+}
