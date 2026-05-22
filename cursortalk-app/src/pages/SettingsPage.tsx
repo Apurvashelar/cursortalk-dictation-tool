@@ -884,18 +884,6 @@ export function SettingsPage({
                     value={organizationBaseUrl ?? ""}
                   />
                 </label>
-
-                <label className="block">
-                  <span className="mb-2 block text-sm font-medium text-slate-700">API key</span>
-                  <input
-                    className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25 disabled:bg-slate-100"
-                    disabled={selectedMode === "local"}
-                    onChange={(event) => onOrganizationApiKeyChange(event.target.value)}
-                    placeholder="Enter your organization access key if one was provided"
-                    type="password"
-                    value={organizationApiKey}
-                  />
-                </label>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3">

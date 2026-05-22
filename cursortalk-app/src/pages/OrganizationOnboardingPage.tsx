@@ -190,8 +190,7 @@ export function OrganizationOnboardingPage({
                     Organization setup
                   </h1>
                   <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                    Connect to your organization workspace API. Once verified, future launches will go straight
-                    to Home.
+                    Connect to your organization workspace API.
                   </p>
                 </div>
 
@@ -207,19 +206,6 @@ export function OrganizationOnboardingPage({
                         placeholder="https://api.your-company.com"
                         type="text"
                         value={baseUrl}
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="mb-2 block text-sm font-medium text-slate-700">
-                        API key
-                      </span>
-                      <input
-                        className="w-full rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-sm text-slate-950 outline-none transition-colors focus:border-black/25"
-                        onChange={(event) => onApiKeyChange(event.target.value)}
-                        placeholder="Enter your organization access key if one was provided"
-                        type="password"
-                        value={apiKey}
                       />
                     </label>
                   </div>

@@ -167,8 +167,8 @@ export function WelcomePage({
                   subtitle="Connects to organization workspace"
                   tag="Recommended for managed deployments"
                   attributes={[
-                    "Fast setup",
-                    "Requires workspace API URL + API key",
+                    "Hosted on Org’s Private Network",
+                    "Requires workspace API URL",
                     "Managed by IT/admin",
                   ]}
                   disabled={!allowOrganizationMode}
