@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { Download } from 'lucide-react'
 import SpeechToTextDemo from './speech-to-text-video-code'
+import { MAC_DOWNLOAD_REDIRECT_PATH } from '@/lib/downloads'
 
 function reveal(delay = 0) {
   return {
@@ -84,8 +85,7 @@ export function Hero() {
           className="flex flex-wrap gap-2.5 justify-center mb-3.5"
         >
           <a
-            href="/downloads/CursorTalk-macOS.zip"
-            download
+            href={MAC_DOWNLOAD_REDIRECT_PATH}
             className="inline-flex items-center gap-2 bg-ink text-bg px-8 py-4 rounded-[14px] font-semibold text-[16px] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
           >
             <svg width="18" height="18" viewBox="0 0 384 512" fill="currentColor">
@@ -99,7 +99,7 @@ export function Hero() {
           {...reveal(0.32)}
           className="font-mono text-[11px] text-dim tracking-[0.07em]"
         >
-          FREE · NO ACCOUNT · UNIVERSAL MAC ZIP · OFFLINE-READY
+          FREE · NO ACCOUNT · APPLE SILICON MAC · OFFLINE-READY
         </motion.p>
 
         {/* Speech-to-Text demo */}

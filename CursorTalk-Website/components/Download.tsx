@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
+import { MAC_DOWNLOAD_REDIRECT_PATH } from '@/lib/downloads'
 
 const platforms = [
   {
@@ -11,19 +12,19 @@ const platforms = [
       </svg>
     ),
     name: 'macOS',
-    sub: 'Universal · Apple Silicon + Intel',
+    sub: 'Apple Silicon build',
     version: '1.0.0',
     size: '282 MB',
     requires: 'macOS 12+',
-    href: '/downloads/CursorTalk-macOS.zip',
+    href: MAC_DOWNLOAD_REDIRECT_PATH,
   },
 ]
 
 const badges = [
   '30-second install',
   'Works offline',
-  'Code-signed',
-  'Auto-updates',
+  'No account required',
+  'Private by design',
 ]
 
 function reveal(delay = 0) {
@@ -65,7 +66,6 @@ export function Download() {
               key={p.name}
               {...reveal(0.08 * (i + 1))}
               href={p.href}
-              download
               className="bg-surface border border-border rounded-md p-9 text-left block cursor-pointer hover:border-teal hover:shadow-glow hover:-translate-y-1 transition-all duration-300"
             >
               <div className="flex items-center justify-between mb-4">
@@ -113,6 +113,9 @@ export function Download() {
           {...reveal(0.32)}
           className="text-[12px] text-dim"
         >
+          This build is currently unsigned and Apple Silicon only. On first launch,
+          macOS may ask you to right-click the app and choose Open before granting
+          microphone and accessibility permissions.
         </motion.p>
       </div>
     </section>

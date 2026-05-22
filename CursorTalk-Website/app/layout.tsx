@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
 import { Bricolage_Grotesque, DM_Sans, JetBrains_Mono } from 'next/font/google'
+import { MAC_DOWNLOAD_REDIRECT_PATH } from '@/lib/downloads'
 import './globals.css'
 
 const bricolage = Bricolage_Grotesque({
@@ -134,7 +135,7 @@ const softwareJsonLd = {
   description: DESCRIPTION,
   url: SITE_URL,
   image: `${SITE_URL}/og-image.png`,
-  downloadUrl: `${SITE_URL}/downloads/CursorTalk-macOS.zip`,
+  downloadUrl: `${SITE_URL}${MAC_DOWNLOAD_REDIRECT_PATH}`,
   softwareVersion: '1.0.0',
   fileSize: '282MB',
   offers: [
