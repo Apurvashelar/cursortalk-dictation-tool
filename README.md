@@ -17,14 +17,12 @@ The product is designed around one workflow:
 3. stop dictation
 4. get cleaned, usable text back
 
-CursorTalk is intentionally not a chatbot. The cleanup pipeline is optimized to normalize dictated speech into polished plain text while preserving the original meaning.
 
 ## What makes CursorTalk different
 
 Most products in this space either:
 
 - stop at raw transcription
-- behave like general-purpose assistants
 - depend on third-party AI APIs for every request
 - give limited deployment control to enterprise customers
 
@@ -38,10 +36,6 @@ CursorTalk takes a different approach:
 ## Product surfaces
 
 ### 1. CursorTalk Website
-
-Path:
-
-- `CursorTalk-Website/`
 
 Purpose:
 
@@ -57,21 +51,12 @@ Stack:
 - Tailwind CSS
 - static export mode via `output: 'export'`
 
-Recommended hosting:
+Hosted on:
 
 - Vercel
 
-Also compatible with:
-
-- S3 + CloudFront
-- Netlify
-- any static hosting provider
 
 ### 2. CursorTalk Desktop App
-
-Path:
-
-- `cursortalk-app/`
 
 Purpose:
 
@@ -209,15 +194,11 @@ Current production metadata indicates:
 Important product detail:
 
 - the cleanup layer is configured as a **deterministic dictation cleanup engine**
-- it is explicitly instructed not to answer prompts or behave like an assistant
+- it is explicitly fine-tuned not to answer prompts or behave like an assistant
 
 ## Backend services
 
 ### Cleanup API
-
-Path:
-
-- `cursortalk-server/`
 
 Stack:
 
@@ -237,10 +218,6 @@ Role:
 
 ### Auth service
 
-Path:
-
-- `cursortalk-auth-service/`
-
 Stack:
 
 - Rust
@@ -259,10 +236,6 @@ Role:
 - enterprise access control for organization mode
 
 ## AWS and infrastructure layer
-
-Path:
-
-- `infra/`
 
 Stack:
 
@@ -298,7 +271,6 @@ Current preferred customer handoff:
 2. fill `customers/customer-config.json`
 3. run deploy/validate/seed/smoke scripts
 
-The repo still contains a setup form artifact, but the intended deployment workflow is now based on the config JSON contract.
 
 ## Repository layout
 
@@ -355,30 +327,6 @@ npm run build
 npm run synth
 ```
 
-## Release and distribution notes
-
-Current desktop distribution status:
-
-- app bundle builds successfully as `CursorTalk.app`
-- ZIP-based download packaging is supported today
-- Apple Developer signing/notarization is not assumed in the current workflow
-
-Important limitation:
-
-- current local build is Apple Silicon (`arm64`) unless a universal or Intel build is produced explicitly
-
-## Documentation
-
-Useful internal docs live under:
-
-- `cursortalk-app/docs/Infrastructure Setup/`
-- `cursortalk-app/docs/Model Retrain/`
-
-Useful quick references:
-
-- `STACK.md`
-- infrastructure setup runbooks
-- model retrain and quantization migration notes
 
 ## Current product summary
 
