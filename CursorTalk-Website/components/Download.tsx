@@ -13,9 +13,9 @@ const platforms = [
     name: 'macOS',
     sub: 'Universal · Apple Silicon + Intel',
     version: '1.0.0',
-    size: '21 MB',
+    size: '282 MB',
     requires: 'macOS 12+',
-    href: '/downloads/CursorTalk.dmg',
+    href: '/downloads/CursorTalk-macOS.zip',
   },
 ]
 

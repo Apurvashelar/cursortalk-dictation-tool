@@ -134,9 +134,9 @@ const softwareJsonLd = {
   description: DESCRIPTION,
   url: SITE_URL,
   image: `${SITE_URL}/og-image.png`,
-  downloadUrl: `${SITE_URL}/downloads/CursorTalk.dmg`,
+  downloadUrl: `${SITE_URL}/downloads/CursorTalk-macOS.zip`,
   softwareVersion: '1.0.0',
-  fileSize: '21MB',
+  fileSize: '282MB',
   offers: [
     {
       '@type': 'Offer',

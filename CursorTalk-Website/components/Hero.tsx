@@ -84,7 +84,7 @@ export function Hero() {
           className="flex flex-wrap gap-2.5 justify-center mb-3.5"
         >
           <a
-            href="/downloads/CursorTalk.dmg"
+            href="/downloads/CursorTalk-macOS.zip"
             download
             className="inline-flex items-center gap-2 bg-ink text-bg px-8 py-4 rounded-[14px] font-semibold text-[16px] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
           >
@@ -99,7 +99,7 @@ export function Hero() {
           {...reveal(0.32)}
           className="font-mono text-[11px] text-dim tracking-[0.07em]"
         >
-          FREE · NO ACCOUNT · 21 MB · OFFLINE-READY
+          FREE · NO ACCOUNT · UNIVERSAL MAC ZIP · OFFLINE-READY
         </motion.p>
 
         {/* Speech-to-Text demo */}
