@@ -136,7 +136,7 @@ The desktop experience remains simple, but the control model is much stronger fo
 
 ## Architecture Walkthrough Video
 
-[Watch the architecture walkthrough](./README-assets/architecture-video.mp4)
+[Watch the architecture walkthrough](https://youtu.be/TjWJepuGnTo)
 
 ### Personal Mode pipeline
 
