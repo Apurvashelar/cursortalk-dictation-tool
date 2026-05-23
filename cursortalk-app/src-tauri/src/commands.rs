@@ -21,6 +21,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+const LOCAL_CLEANUP_TIMEOUT_SECS: u64 = 180;
+
 #[derive(Serialize)]
 pub struct BackendHealth {
     pub status: String,
@@ -716,7 +718,10 @@ async fn stop_recording_internal(
             let cleanup_model_dir = local_status.cleanup_model_dir.clone();
             let cleanup_raw_transcript = raw_transcript.clone();
 
-            match run_blocking_with_timeout("Local cleanup", Duration::from_secs(45), move || {
+            match run_blocking_with_timeout(
+                "Local cleanup",
+                Duration::from_secs(LOCAL_CLEANUP_TIMEOUT_SECS),
+                move || {
                 let state = app_handle.state::<AppState>();
                 let mut local_server = state
                     .local_cleanup_server
@@ -730,7 +735,8 @@ async fn stop_recording_internal(
                     &cleanup_raw_transcript,
                 )
                 .map_err(|error| error.to_string())
-            }) {
+            },
+            ) {
                 Ok(result) => result,
                 Err(error) if allow_raw_fallback => {
                     cleanup::fallback_from_raw(&raw_transcript, &error.to_string())
