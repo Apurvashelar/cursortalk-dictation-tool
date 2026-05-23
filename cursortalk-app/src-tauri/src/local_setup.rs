@@ -559,6 +559,7 @@ fn download_file(
         .with_context(|| format!("failed to write {}", partial_path.display()))?;
     let mut buffer = [0_u8; 64 * 1024];
     let mut downloaded_this_file = 0_u64;
+    let mut last_emitted_percent = 0_u64;
 
     emit_progress(
         app,
@@ -588,15 +589,19 @@ fn download_file(
         let file_percent = ((downloaded_this_file as f64 / total_file_bytes as f64) * 100.0)
             .clamp(0.0, 100.0);
 
-        emit_progress(
-            app,
-            step,
-            &format!("{label} download is in progress. {}%", file_percent.round() as u64),
-            Some(progress_percent(
-                overall_bytes,
-                expected_total_download_bytes,
-            )),
-        )?;
+        let rounded_percent = file_percent.round() as u64;
+        if rounded_percent != last_emitted_percent {
+            last_emitted_percent = rounded_percent;
+            emit_progress(
+                app,
+                step,
+                &format!("{label} download is in progress. {rounded_percent}%"),
+                Some(progress_percent(
+                    overall_bytes,
+                    expected_total_download_bytes,
+                )),
+            )?;
+        }
     }
 
     partial_file
@@ -611,6 +616,15 @@ fn download_file(
     fs::rename(&partial_path, target_path)
         .with_context(|| format!("failed to finalize {}", target_path.display()))?;
     *downloaded_bytes = starting_bytes + downloaded_this_file.max(expected_file_bytes);
+    emit_progress(
+        app,
+        step,
+        &format!("{label} download is in progress. 100%"),
+        Some(progress_percent(
+            *downloaded_bytes,
+            expected_total_download_bytes,
+        )),
+    )?;
     Ok(())
 }
 
