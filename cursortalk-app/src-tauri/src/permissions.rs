@@ -65,6 +65,39 @@ pub fn accessibility_is_trusted() -> bool {
     }
 }
 
+pub fn request_accessibility_permission() -> Result<bool> {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        let options = CFDictionaryCreateMutable(
+            std::ptr::null(),
+            0,
+            std::ptr::null(),
+            std::ptr::null(),
+        );
+
+        if options.is_null() {
+            return Err(anyhow!("failed to create accessibility permission options"));
+        }
+
+        CFDictionaryAddValue(
+            options,
+            kAXTrustedCheckOptionPrompt.cast(),
+            kCFBooleanTrue.cast(),
+        );
+
+        let trusted = AXIsProcessTrustedWithOptions(options.cast());
+        CFRelease(options.cast());
+        Ok(trusted)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err(anyhow!(
+            "requesting accessibility permission is only implemented on macOS"
+        ))
+    }
+}
+
 fn microphone_permission_state() -> PermissionState {
     match probe_microphone_access() {
         Ok(()) => PermissionState {
@@ -124,7 +157,7 @@ fn accessibility_permission_state() -> PermissionState {
 
 #[cfg(target_os = "macos")]
 fn accessibility_denied_message() -> String {
-    "Accessibility is not trusted for this exact app bundle. Re-add the final packaged app in System Settings, then relaunch it from that same bundle path."
+    "Accessibility is not trusted for this app yet. Use the Accessibility prompt or add the final packaged app in System Settings, then refresh permissions."
         .to_string()
 }
 
@@ -161,5 +194,26 @@ fn looks_like_permission_error(message: &str) -> bool {
 #[link(name = "ApplicationServices", kind = "framework")]
 unsafe extern "C" {
     fn AXIsProcessTrusted() -> bool;
+    fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
     fn CGPreflightPostEventAccess() -> bool;
+}
+
+#[cfg(target_os = "macos")]
+#[link(name = "CoreFoundation", kind = "framework")]
+unsafe extern "C" {
+    fn CFDictionaryCreateMutable(
+        allocator: *const std::ffi::c_void,
+        capacity: isize,
+        key_callbacks: *const std::ffi::c_void,
+        value_callbacks: *const std::ffi::c_void,
+    ) -> *mut std::ffi::c_void;
+    fn CFDictionaryAddValue(
+        the_dict: *mut std::ffi::c_void,
+        key: *const std::ffi::c_void,
+        value: *const std::ffi::c_void,
+    );
+    fn CFRelease(value: *const std::ffi::c_void);
+
+    static kAXTrustedCheckOptionPrompt: *const std::ffi::c_void;
+    static kCFBooleanTrue: *const std::ffi::c_void;
 }

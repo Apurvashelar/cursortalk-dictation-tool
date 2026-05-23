@@ -461,6 +461,11 @@ pub fn open_permission_settings(permission: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn request_accessibility_permission() -> Result<bool, String> {
+    permissions::request_accessibility_permission().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn run_local_setup(app: AppHandle) -> Result<local_setup::LocalSetupStatus, String> {
     local_setup::run_local_setup(&app).map_err(|error| error.to_string())
 }

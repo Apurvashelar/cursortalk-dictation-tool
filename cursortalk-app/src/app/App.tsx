@@ -1030,7 +1030,13 @@ export function App() {
 
   async function openPermissionSettings(permission: "microphone" | "accessibility") {
     try {
+      if (permission === "accessibility") {
+        await invoke("request_accessibility_permission");
+      }
       await invoke("open_permission_settings", { permission });
+      window.setTimeout(() => {
+        void refreshPermissionStatus();
+      }, 750);
     } catch (error) {
       console.error(`Failed to open ${permission} settings`, error);
     }

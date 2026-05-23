@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "clean-macos-bundles": "bash scripts/clean-macos-bundles.sh",
+    "package:macos:unsigned-dmg": "bash scripts/package-unsigned-macos-dmg.sh",
     "prepare-downloads": "bash scripts/prepare-download-assets.sh",
     "build": "npm run prepare-downloads && tsc && vite build",
     "preview": "vite preview",

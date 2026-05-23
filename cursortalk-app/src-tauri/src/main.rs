@@ -83,6 +83,7 @@ fn main() {
             commands::run_local_setup,
             commands::paste_latest_output,
             commands::get_permission_status_report,
+            commands::request_accessibility_permission,
             commands::open_permission_settings,
             commands::get_dictation_log_summary,
             commands::get_recent_dictation_entries,
