@@ -28,6 +28,7 @@ const CLEANUP_MODEL_FILE_NAME: &str = "dictation-cleanup-q4km.gguf";
 const DEFAULT_CLEANUP_DOWNLOAD_URL: &str =
     "https://github.com/Apurvashelar/cursortalk-dictation-tool/releases/download/local-models/dictation-cleanup-q4km.gguf";
 const CLEANUP_DOWNLOAD_URL_ENV: &str = "CURSORTALK_LOCAL_CLEANUP_MODEL_URL";
+const ALLOW_LOCAL_MODEL_REUSE_ENV: &str = "CURSORTALK_ALLOW_LOCAL_MODEL_REUSE";
 const LEGACY_CLEANUP_DOWNLOAD_URL_ENV: &str = "VOICEFLOW_LOCAL_CLEANUP_MODEL_URL";
 const STORAGE_DIR_NAME: &str = "CursorTalk";
 const LEGACY_STORAGE_DIR_NAME: &str = "VoiceFlow Desktop";
@@ -270,15 +271,28 @@ fn inspect_local_setup() -> SetupInspection {
     let stt_ready = canonical_stt_ready || configured_stt_ready;
 
     let canonical_cleanup_file = find_gguf_file(&canonical_cleanup_dir);
-    let workspace_cleanup_file = find_workspace_cleanup_file();
-    let desktop_cleanup_file = find_desktop_cleanup_file();
-    let legacy_cleanup_file = find_legacy_cleanup_file();
-    let cleanup_source_file = canonical_cleanup_file
-        .clone()
-        .or_else(|| workspace_cleanup_file.clone())
-        .or_else(|| desktop_cleanup_file.clone())
-        .or_else(|| legacy_cleanup_file.clone());
-    let cleanup_ready = cleanup_source_file.is_some();
+    let workspace_cleanup_file = if allow_local_model_reuse() {
+        find_workspace_cleanup_file()
+    } else {
+        None
+    };
+    let desktop_cleanup_file = if allow_local_model_reuse() {
+        find_desktop_cleanup_file()
+    } else {
+        None
+    };
+    let legacy_cleanup_file = if allow_local_model_reuse() {
+        find_legacy_cleanup_file()
+    } else {
+        None
+    };
+    let cleanup_source_file = resolve_cleanup_source_file(
+        canonical_cleanup_file.clone(),
+        workspace_cleanup_file.clone(),
+        desktop_cleanup_file.clone(),
+        legacy_cleanup_file.clone(),
+    );
+    let cleanup_ready = canonical_cleanup_file.is_some();
 
     let mut missing_items = Vec::new();
     if !stt_ready {
@@ -294,10 +308,7 @@ fn inspect_local_setup() -> SetupInspection {
         configured_stt_dir.clone()
     };
 
-    let effective_cleanup_dir = cleanup_source_file
-        .as_ref()
-        .and_then(|path| path.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| canonical_cleanup_dir.clone());
+    let effective_cleanup_dir = canonical_cleanup_dir.clone();
 
     SetupInspection {
         storage_path,
@@ -777,6 +788,57 @@ fn cleanup_download_url() -> Option<String> {
                 .filter(|value| !value.is_empty())
         })
         .or_else(|| Some(DEFAULT_CLEANUP_DOWNLOAD_URL.to_string()))
+}
+
+fn allow_local_model_reuse() -> bool {
+    env::var(ALLOW_LOCAL_MODEL_REUSE_ENV)
+        .ok()
+        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false)
+}
+
+fn resolve_cleanup_source_file(
+    canonical_cleanup_file: Option<PathBuf>,
+    workspace_cleanup_file: Option<PathBuf>,
+    desktop_cleanup_file: Option<PathBuf>,
+    legacy_cleanup_file: Option<PathBuf>,
+) -> Option<PathBuf> {
+    canonical_cleanup_file.or_else(|| {
+        if allow_local_model_reuse() {
+            workspace_cleanup_file
+                .or(desktop_cleanup_file)
+                .or(legacy_cleanup_file)
+        } else {
+            None
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_cleanup_source_file;
+    use std::path::PathBuf;
+
+    #[test]
+    fn canonical_cleanup_model_is_preferred() {
+        let canonical = Some(PathBuf::from("/canonical/dictation-cleanup-q4km.gguf"));
+        let workspace = Some(PathBuf::from("/workspace/dictation-cleanup-q4km.gguf"));
+
+        let resolved =
+            resolve_cleanup_source_file(canonical.clone(), workspace.clone(), None, None);
+
+        assert_eq!(resolved, canonical);
+        assert_ne!(resolved, workspace);
+    }
+
+    #[test]
+    fn external_cleanup_model_is_ignored_by_default() {
+        let workspace = Some(PathBuf::from("/workspace/dictation-cleanup-q4km.gguf"));
+
+        let resolved = resolve_cleanup_source_file(None, workspace, None, None);
+
+        assert_eq!(resolved, None);
+    }
 }
 
 fn emit_progress(app: &AppHandle, step: &str, message: &str, percent: Option<f32>) -> Result<()> {
