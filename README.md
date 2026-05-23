@@ -22,17 +22,6 @@ The product is designed around one workflow:
 
 ![CursorTalk Demo](./README-assets/demo.gif)
 
-## Product Demo
-
-![CursorTalk Demo](./README-assets/demo.gif)
-
-## Product Demo
-
-![CursorTalk Demo](./README-assets/demo.gif)
-
-## Product Demo
-
-![CursorTalk Demo](./README-assets/demo.gif)
 
 ## What makes CursorTalk different
 
