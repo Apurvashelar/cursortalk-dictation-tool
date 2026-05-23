@@ -32,7 +32,14 @@
       "files": {
         "Frameworks/libonnxruntime.1.17.1.dylib": "target/release/libonnxruntime.1.17.1.dylib",
         "Frameworks/libsherpa-onnx-c-api.dylib": "target/release/libsherpa-onnx-c-api.dylib",
-        "MacOS/llama-server": "bin/llama-server"
+        "Resources/llama-runtime/llama-server": "bin/llama-runtime/llama-server",
+        "Resources/llama-runtime/libmtmd.0.dylib": "bin/llama-runtime/libmtmd.0.dylib",
+        "Resources/llama-runtime/libllama.0.dylib": "bin/llama-runtime/libllama.0.dylib",
+        "Resources/llama-runtime/libggml.0.dylib": "bin/llama-runtime/libggml.0.dylib",
+        "Resources/llama-runtime/libggml-cpu.0.dylib": "bin/llama-runtime/libggml-cpu.0.dylib",
+        "Resources/llama-runtime/libggml-blas.0.dylib": "bin/llama-runtime/libggml-blas.0.dylib",
+        "Resources/llama-runtime/libggml-metal.0.dylib": "bin/llama-runtime/libggml-metal.0.dylib",
+        "Resources/llama-runtime/libggml-base.0.dylib": "bin/llama-runtime/libggml-base.0.dylib"
       }
     }
   }
