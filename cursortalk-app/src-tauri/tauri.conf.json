@@ -32,7 +32,7 @@
       "files": {
         "Frameworks/libonnxruntime.1.17.1.dylib": "target/release/libonnxruntime.1.17.1.dylib",
         "Frameworks/libsherpa-onnx-c-api.dylib": "target/release/libsherpa-onnx-c-api.dylib",
-        "Resources/llama-server": "bin/llama-server"
+        "MacOS/llama-server": "bin/llama-server"
       }
     }
   }

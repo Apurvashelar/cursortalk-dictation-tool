@@ -330,6 +330,9 @@ export function App() {
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
   const [localSetupStepItems, setLocalSetupStepItems] =
     useState<readonly string[]>(localPreflightSteps);
+  const [localSetupProgressValue, setLocalSetupProgressValue] = useState(
+    100 / localPreflightSteps.length,
+  );
   const [localSetupAwaitingPermissions, setLocalSetupAwaitingPermissions] = useState(false);
   const [organizationBaseUrl, setOrganizationBaseUrl] = useState(() => {
     if (typeof window === "undefined") {
@@ -778,6 +781,7 @@ export function App() {
     setLocalSetupStepIndex(0);
     setLocalSetupStatus(null);
     setLocalSetupStepItems(localPreflightSteps);
+    setLocalSetupProgressValue(100 / localPreflightSteps.length);
     setLocalSetupAwaitingPermissions(false);
     const timeouts: number[] = [];
 
@@ -812,6 +816,7 @@ export function App() {
 
           setLocalSetupStepItems(localPreflightSteps);
           setLocalSetupStepIndex(index);
+          setLocalSetupProgressValue(((index + 1) / localPreflightSteps.length) * 100);
         }, index * 220);
 
         timeouts.push(timeoutId);
@@ -827,6 +832,7 @@ export function App() {
         if (status.status === "complete") {
           setLocalSetupStepItems([...localPreflightSteps, "Setup already completed"]);
           setLocalSetupStepIndex(localPreflightSteps.length);
+          setLocalSetupProgressValue(100);
           queuePostSetupTransition(1200);
         }
       }, localPreflightSteps.length * 220 + 60);
@@ -850,6 +856,9 @@ export function App() {
             if (stepIndex >= 0) {
               setLocalSetupStepItems(localInstallSteps);
               setLocalSetupStepIndex(stepIndex);
+            }
+            if (event.payload.percent !== null) {
+              setLocalSetupProgressValue(event.payload.percent);
             }
 
             setLocalSetupStatus((currentStatus) => ({
@@ -888,6 +897,7 @@ export function App() {
             setLocalSetupStatus(finalStatus);
             setLocalSetupStepItems(localInstallSteps);
             setLocalSetupStepIndex(localInstallSteps.length - 1);
+            setLocalSetupProgressValue(100);
             queuePostSetupTransition(900);
           } catch (error) {
             if (!isActive) {
@@ -1487,7 +1497,7 @@ export function App() {
         hotkey={hotkey}
         stepItems={[...localSetupStepItems]}
         progressStepLabel={localSetupStepItems[localSetupStepIndex] ?? localSetupStepItems[0]}
-        progressValue={((localSetupStepIndex + 1) / localSetupStepItems.length) * 100}
+        progressValue={localSetupProgressValue}
         statusMessage={localSetupStatus?.message}
         detectedStatus={localSetupStatus?.status}
         missingItems={localSetupStatus?.missing_items}

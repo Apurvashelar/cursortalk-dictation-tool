@@ -2,7 +2,8 @@
 
 import { motion } from 'framer-motion'
 import { Check } from 'lucide-react'
-import { MAC_DOWNLOAD_REDIRECT_PATH } from '@/lib/downloads'
+import { MAC_DOWNLOAD_RELEASE_URL } from '@/lib/downloads'
+import { triggerMacDownload } from '@/lib/trigger-download'
 
 const platforms = [
   {
@@ -16,7 +17,7 @@ const platforms = [
     version: '1.0.0',
     size: '352 MB',
     requires: 'macOS 12+',
-    href: MAC_DOWNLOAD_REDIRECT_PATH,
+    href: MAC_DOWNLOAD_RELEASE_URL,
   },
 ]
 
@@ -66,6 +67,10 @@ export function Download() {
               key={p.name}
               {...reveal(0.08 * (i + 1))}
               href={p.href}
+              onClick={(event) => {
+                event.preventDefault()
+                triggerMacDownload()
+              }}
               className="bg-surface border border-border rounded-md p-9 text-left block cursor-pointer hover:border-teal hover:shadow-glow hover:-translate-y-1 transition-all duration-300"
             >
               <div className="flex items-center justify-between mb-4">

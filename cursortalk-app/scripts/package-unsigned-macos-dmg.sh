@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TAURI_BUNDLE_DIR="${ROOT_DIR}/src-tauri/target/release/bundle"
 APP_BUNDLE="${TAURI_BUNDLE_DIR}/macos/CursorTalk.app"
 FRAMEWORKS_DIR="${APP_BUNDLE}/Contents/Frameworks"
+MACOS_DIR="${APP_BUNDLE}/Contents/MacOS"
 DIST_DIR="${ROOT_DIR}/dist/releases/macos"
 DMG_PATH="${DIST_DIR}/CursorTalk.dmg"
 VOLUME_NAME="CursorTalk"
@@ -53,6 +54,13 @@ if [[ -d "${FRAMEWORKS_DIR}" ]]; then
   while IFS= read -r dylib; do
     codesign --force --sign - --timestamp=none "${dylib}"
   done < <(find "${FRAMEWORKS_DIR}" -maxdepth 1 -type f -name '*.dylib' | sort)
+fi
+
+if [[ -d "${MACOS_DIR}" ]]; then
+  while IFS= read -r helper; do
+    chmod +x "${helper}"
+    codesign --force --sign - --timestamp=none "${helper}"
+  done < <(find "${MACOS_DIR}" -maxdepth 1 -type f \( -name 'llama-server' -o -name 'llama-server-*' \) | sort)
 fi
 
 # Keep the unsigned distribution on a plain ad-hoc signature.

@@ -90,6 +90,7 @@ export type LocalSetupStatus = {
 export type LocalSetupProgress = {
   step: string;
   message: string;
+  percent: number | null;
 };
 
 export type PermissionState = {

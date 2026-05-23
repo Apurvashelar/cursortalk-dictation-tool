@@ -3,7 +3,8 @@
 import { motion } from 'framer-motion'
 import { Download } from 'lucide-react'
 import SpeechToTextDemo from './speech-to-text-video-code'
-import { MAC_DOWNLOAD_REDIRECT_PATH } from '@/lib/downloads'
+import { MAC_DOWNLOAD_RELEASE_URL } from '@/lib/downloads'
+import { triggerMacDownload } from '@/lib/trigger-download'
 
 function reveal(delay = 0) {
   return {
@@ -85,7 +86,11 @@ export function Hero() {
           className="flex flex-wrap gap-2.5 justify-center mb-3.5"
         >
           <a
-            href={MAC_DOWNLOAD_REDIRECT_PATH}
+            href={MAC_DOWNLOAD_RELEASE_URL}
+            onClick={(event) => {
+              event.preventDefault()
+              triggerMacDownload()
+            }}
             className="inline-flex items-center gap-2 bg-ink text-bg px-8 py-4 rounded-[14px] font-semibold text-[16px] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
           >
             <svg width="18" height="18" viewBox="0 0 384 512" fill="currentColor">

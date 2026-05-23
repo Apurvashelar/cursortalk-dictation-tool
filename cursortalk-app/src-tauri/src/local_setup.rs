@@ -1,10 +1,12 @@
 use std::{
     env, fs,
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
 use anyhow::{anyhow, Context, Result};
+use reqwest::blocking::Client as BlockingClient;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
@@ -29,6 +31,11 @@ const CLEANUP_DOWNLOAD_URL_ENV: &str = "CURSORTALK_LOCAL_CLEANUP_MODEL_URL";
 const LEGACY_CLEANUP_DOWNLOAD_URL_ENV: &str = "VOICEFLOW_LOCAL_CLEANUP_MODEL_URL";
 const STORAGE_DIR_NAME: &str = "CursorTalk";
 const LEGACY_STORAGE_DIR_NAME: &str = "VoiceFlow Desktop";
+const STT_EXPECTED_DOWNLOAD_BYTES: u64 = 482_468_385;
+const CLEANUP_EXPECTED_DOWNLOAD_BYTES: u64 = 2_019_377_376;
+const PREPARING_FOLDERS_PERCENT: f32 = 5.0;
+const VERIFYING_FILES_PERCENT: f32 = 95.0;
+const PREPARING_RUNTIME_PERCENT: f32 = 98.0;
 
 #[derive(Clone, Serialize)]
 pub struct LocalSetupStatus {
@@ -45,6 +52,7 @@ pub struct LocalSetupStatus {
 pub struct LocalSetupProgress {
     pub step: String,
     pub message: String,
+    pub percent: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -98,6 +106,7 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
             app,
             "Setup already completed",
             "Required local files were found on this machine. Skipping download.",
+            Some(100.0),
         )?;
         write_local_setup_metadata(
             &initial.storage_path,
@@ -113,16 +122,23 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
         app,
         "Preparing folders",
         "Preparing local storage folders for speech and cleanup models.",
+        Some(PREPARING_FOLDERS_PERCENT),
     )?;
     prepare_storage_directories(&initial.storage_path)?;
 
     let downloads_dir = initial.storage_path.join("downloads");
     let mut reused_existing_files = false;
+    let mut downloaded_bytes = 0_u64;
+    let expected_total_download_bytes = expected_download_bytes(&initial);
 
     emit_progress(
         app,
         "Downloading speech model",
         "Preparing the local speech model files.",
+        Some(progress_percent(
+            downloaded_bytes,
+            expected_total_download_bytes,
+        )),
     )?;
     let current = inspect_local_setup();
     if !current.canonical_stt_ready {
@@ -130,7 +146,13 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
             link_required_stt_files(&current.configured_stt_dir, &current.canonical_stt_dir)?;
             reused_existing_files = true;
         } else {
-            download_and_install_stt_model(&downloads_dir, &current.canonical_stt_dir)?;
+            download_and_install_stt_model(
+                app,
+                &downloads_dir,
+                &current.canonical_stt_dir,
+                expected_total_download_bytes,
+                &mut downloaded_bytes,
+            )?;
         }
     }
 
@@ -138,6 +160,10 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
         app,
         "Downloading cleanup model",
         "Preparing the local cleanup model files.",
+        Some(progress_percent(
+            downloaded_bytes,
+            expected_total_download_bytes,
+        )),
     )?;
     let current = inspect_local_setup();
     if current.canonical_cleanup_file.is_none() {
@@ -146,9 +172,12 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
             reused_existing_files = true;
         } else if let Some(download_url) = cleanup_download_url() {
             download_and_install_cleanup_model(
+                app,
                 &download_url,
                 &downloads_dir,
                 &current.canonical_cleanup_dir,
+                expected_total_download_bytes,
+                &mut downloaded_bytes,
             )?;
         } else {
             return Err(anyhow!(
@@ -163,6 +192,7 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
         app,
         "Verifying files",
         "Validating the local speech and cleanup files.",
+        Some(VERIFYING_FILES_PERCENT),
     )?;
     let final_state = inspect_local_setup();
 
@@ -182,6 +212,7 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
         app,
         "Preparing local runtime",
         "Finalizing local setup metadata and runtime state.",
+        Some(PREPARING_RUNTIME_PERCENT),
     )?;
     write_local_setup_metadata(
         &final_state.storage_path,
@@ -191,7 +222,14 @@ pub fn run_local_setup(app: &AppHandle) -> Result<LocalSetupStatus> {
         final_state.detected_legacy_cleanup,
     )?;
 
-    Ok(detect_local_setup())
+    let final_status = detect_local_setup();
+    emit_progress(
+        app,
+        "Preparing local runtime",
+        "Model files download is complete. Local mode is ready.",
+        Some(100.0),
+    )?;
+    Ok(final_status)
 }
 
 impl SetupInspection {
@@ -291,11 +329,26 @@ fn prepare_storage_directories(storage_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn download_and_install_stt_model(downloads_dir: &Path, target_dir: &Path) -> Result<()> {
+fn download_and_install_stt_model(
+    app: &AppHandle,
+    downloads_dir: &Path,
+    target_dir: &Path,
+    expected_total_download_bytes: u64,
+    downloaded_bytes: &mut u64,
+) -> Result<()> {
     let archive_path = downloads_dir.join(STT_ARCHIVE_FILE_NAME);
     let extracted_root = downloads_dir.join(STT_ARCHIVE_ROOT_DIR);
 
-    download_file(STT_DOWNLOAD_URL, &archive_path, "speech model archive")?;
+    download_file(
+        app,
+        STT_DOWNLOAD_URL,
+        &archive_path,
+        "speech model archive",
+        "Downloading speech model",
+        STT_EXPECTED_DOWNLOAD_BYTES,
+        expected_total_download_bytes,
+        downloaded_bytes,
+    )?;
 
     if extracted_root.exists() {
         fs::remove_dir_all(&extracted_root)
@@ -326,14 +379,26 @@ fn download_and_install_stt_model(downloads_dir: &Path, target_dir: &Path) -> Re
 }
 
 fn download_and_install_cleanup_model(
+    app: &AppHandle,
     download_url: &str,
     downloads_dir: &Path,
     target_dir: &Path,
+    expected_total_download_bytes: u64,
+    downloaded_bytes: &mut u64,
 ) -> Result<()> {
     let downloaded_path = downloads_dir.join(CLEANUP_MODEL_FILE_NAME);
     let target_path = target_dir.join(CLEANUP_MODEL_FILE_NAME);
 
-    download_file(download_url, &downloaded_path, "cleanup model")?;
+    download_file(
+        app,
+        download_url,
+        &downloaded_path,
+        "cleanup model",
+        "Downloading cleanup model",
+        CLEANUP_EXPECTED_DOWNLOAD_BYTES,
+        expected_total_download_bytes,
+        downloaded_bytes,
+    )?;
     move_or_copy_file(&downloaded_path, &target_path)?;
 
     let _ = fs::remove_file(&downloaded_path);
@@ -457,7 +522,16 @@ fn same_file_target(source: &Path, target: &Path) -> bool {
     }
 }
 
-fn download_file(url: &str, target_path: &Path, label: &str) -> Result<()> {
+fn download_file(
+    app: &AppHandle,
+    url: &str,
+    target_path: &Path,
+    label: &str,
+    step: &str,
+    expected_file_bytes: u64,
+    expected_total_download_bytes: u64,
+    downloaded_bytes: &mut u64,
+) -> Result<()> {
     let partial_path = target_path.with_extension("part");
 
     if partial_path.exists() {
@@ -465,17 +539,69 @@ fn download_file(url: &str, target_path: &Path, label: &str) -> Result<()> {
             .with_context(|| format!("failed to clear {}", partial_path.display()))?;
     }
 
-    run_process(
-        Command::new("curl")
-            .arg("-L")
-            .arg("--fail")
-            .arg("--silent")
-            .arg("--show-error")
-            .arg("-o")
-            .arg(&partial_path)
-            .arg(url),
-        &format!("download {label}"),
+    let client = BlockingClient::builder()
+        .build()
+        .context("failed to create download client")?;
+
+    let mut response = client
+        .get(url)
+        .send()
+        .with_context(|| format!("failed to download {label}"))?
+        .error_for_status()
+        .with_context(|| format!("failed to download {label}"))?;
+
+    let total_file_bytes = response
+        .content_length()
+        .unwrap_or(expected_file_bytes)
+        .max(1);
+    let starting_bytes = *downloaded_bytes;
+    let mut partial_file = fs::File::create(&partial_path)
+        .with_context(|| format!("failed to write {}", partial_path.display()))?;
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut downloaded_this_file = 0_u64;
+
+    emit_progress(
+        app,
+        step,
+        &format!("{label} download is in progress. 0%"),
+        Some(progress_percent(
+            starting_bytes,
+            expected_total_download_bytes,
+        )),
     )?;
+
+    loop {
+        let read = response
+            .read(&mut buffer)
+            .with_context(|| format!("failed while downloading {label}"))?;
+
+        if read == 0 {
+            break;
+        }
+
+        partial_file
+            .write_all(&buffer[..read])
+            .with_context(|| format!("failed to write {}", partial_path.display()))?;
+
+        downloaded_this_file += read as u64;
+        let overall_bytes = starting_bytes + downloaded_this_file;
+        let file_percent = ((downloaded_this_file as f64 / total_file_bytes as f64) * 100.0)
+            .clamp(0.0, 100.0);
+
+        emit_progress(
+            app,
+            step,
+            &format!("{label} download is in progress. {}%", file_percent.round() as u64),
+            Some(progress_percent(
+                overall_bytes,
+                expected_total_download_bytes,
+            )),
+        )?;
+    }
+
+    partial_file
+        .flush()
+        .with_context(|| format!("failed to finalize {}", partial_path.display()))?;
 
     if target_path.exists() {
         fs::remove_file(target_path)
@@ -484,6 +610,7 @@ fn download_file(url: &str, target_path: &Path, label: &str) -> Result<()> {
 
     fs::rename(&partial_path, target_path)
         .with_context(|| format!("failed to finalize {}", target_path.display()))?;
+    *downloaded_bytes = starting_bytes + downloaded_this_file.max(expected_file_bytes);
     Ok(())
 }
 
@@ -638,13 +765,40 @@ fn cleanup_download_url() -> Option<String> {
         .or_else(|| Some(DEFAULT_CLEANUP_DOWNLOAD_URL.to_string()))
 }
 
-fn emit_progress(app: &AppHandle, step: &str, message: &str) -> Result<()> {
+fn emit_progress(app: &AppHandle, step: &str, message: &str, percent: Option<f32>) -> Result<()> {
     app.emit(
         LOCAL_SETUP_PROGRESS_EVENT,
         LocalSetupProgress {
             step: step.to_string(),
             message: message.to_string(),
+            percent,
         },
     )
     .context("failed to emit local setup progress event")
+}
+
+fn expected_download_bytes(inspection: &SetupInspection) -> u64 {
+    let mut total = 0_u64;
+
+    if !inspection.canonical_stt_ready && !inspection.configured_stt_ready {
+        total += STT_EXPECTED_DOWNLOAD_BYTES;
+    }
+
+    if inspection.canonical_cleanup_file.is_none() && inspection.cleanup_source_file.is_none() {
+        total += CLEANUP_EXPECTED_DOWNLOAD_BYTES;
+    }
+
+    total
+}
+
+fn progress_percent(downloaded_bytes: u64, expected_total_download_bytes: u64) -> f32 {
+    if expected_total_download_bytes == 0 {
+        return VERIFYING_FILES_PERCENT;
+    }
+
+    let normalized =
+        (downloaded_bytes as f64 / expected_total_download_bytes as f64).clamp(0.0, 1.0);
+    let percent = PREPARING_FOLDERS_PERCENT as f64
+        + normalized * (VERIFYING_FILES_PERCENT - PREPARING_FOLDERS_PERCENT) as f64;
+    percent as f32
 }
