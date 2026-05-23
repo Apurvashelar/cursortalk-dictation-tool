@@ -62,6 +62,20 @@ const localInstallSteps = [
   "Verifying files",
   "Preparing local runtime",
 ] as const;
+const localPreflightStartPercent = 1;
+const localPreflightEndPercent = 4;
+
+function localPreflightProgressPercent(index: number) {
+  if (localPreflightSteps.length <= 1) {
+    return localPreflightEndPercent;
+  }
+
+  const ratio = index / (localPreflightSteps.length - 1);
+  return (
+    localPreflightStartPercent +
+    ratio * (localPreflightEndPercent - localPreflightStartPercent)
+  );
+}
 
 const defaultSessionState: SessionState = {
   state: "idle",
@@ -330,9 +344,7 @@ export function App() {
   const [localSetupStatus, setLocalSetupStatus] = useState<LocalSetupStatus | null>(null);
   const [localSetupStepItems, setLocalSetupStepItems] =
     useState<readonly string[]>(localPreflightSteps);
-  const [localSetupProgressValue, setLocalSetupProgressValue] = useState(
-    100 / localPreflightSteps.length,
-  );
+  const [localSetupProgressValue, setLocalSetupProgressValue] = useState(localPreflightStartPercent);
   const [localSetupAwaitingPermissions, setLocalSetupAwaitingPermissions] = useState(false);
   const [organizationBaseUrl, setOrganizationBaseUrl] = useState(() => {
     if (typeof window === "undefined") {
@@ -781,7 +793,7 @@ export function App() {
     setLocalSetupStepIndex(0);
     setLocalSetupStatus(null);
     setLocalSetupStepItems(localPreflightSteps);
-    setLocalSetupProgressValue(100 / localPreflightSteps.length);
+    setLocalSetupProgressValue(localPreflightStartPercent);
     setLocalSetupAwaitingPermissions(false);
     const timeouts: number[] = [];
 
@@ -816,7 +828,7 @@ export function App() {
 
           setLocalSetupStepItems(localPreflightSteps);
           setLocalSetupStepIndex(index);
-          setLocalSetupProgressValue(((index + 1) / localPreflightSteps.length) * 100);
+          setLocalSetupProgressValue(localPreflightProgressPercent(index));
         }, index * 220);
 
         timeouts.push(timeoutId);
