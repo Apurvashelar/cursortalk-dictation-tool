@@ -7,11 +7,12 @@
     "dev": "vite",
     "clean-macos-bundles": "bash scripts/clean-macos-bundles.sh",
     "package:macos:unsigned-dmg": "bash scripts/package-unsigned-macos-dmg.sh",
+    "prepare:macos-runtime": "bash scripts/prepare-macos-runtime-binaries.sh",
     "prepare-downloads": "bash scripts/prepare-download-assets.sh",
     "build": "npm run prepare-downloads && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:build:mac": "npm run clean-macos-bundles && npm run tauri build",
+    "tauri:build:mac": "npm run clean-macos-bundles && npm run prepare:macos-runtime && npm run tauri build",
     "release:macos": "bash scripts/release-macos-distribution.sh"
   },
   "dependencies": {

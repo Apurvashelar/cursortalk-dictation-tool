@@ -208,13 +208,13 @@ impl SetupInspection {
         } else if self.stt_ready || self.cleanup_ready {
             (
                 "partial".to_string(),
-                "Existing local files were found. Finishing setup with the missing pieces."
+                "Model files download is in progress. Finishing setup with the missing pieces."
                     .to_string(),
             )
         } else {
             (
                 "missing".to_string(),
-                "Local models were not found yet. Download is required for setup.".to_string(),
+                "Model files download is in progress.".to_string(),
             )
         }
     }

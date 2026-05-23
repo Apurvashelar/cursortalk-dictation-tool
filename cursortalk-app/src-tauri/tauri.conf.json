@@ -5,7 +5,7 @@
   "identifier": "com.cursortalk.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run prepare:macos-runtime && npm run build",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
@@ -31,7 +31,8 @@
     "macOS": {
       "files": {
         "Frameworks/libonnxruntime.1.17.1.dylib": "target/release/libonnxruntime.1.17.1.dylib",
-        "Frameworks/libsherpa-onnx-c-api.dylib": "target/release/libsherpa-onnx-c-api.dylib"
+        "Frameworks/libsherpa-onnx-c-api.dylib": "target/release/libsherpa-onnx-c-api.dylib",
+        "Resources/llama-server": "bin/llama-server"
       }
     }
   }

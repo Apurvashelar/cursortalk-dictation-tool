@@ -33,6 +33,7 @@ require_command npm
 (
   cd "${ROOT_DIR}"
   npm run clean-macos-bundles
+  npm run prepare:macos-runtime
   npm run tauri build -- --bundles app
 )
 

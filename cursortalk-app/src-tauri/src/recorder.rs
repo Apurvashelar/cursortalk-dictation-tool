@@ -14,6 +14,8 @@ use cpal::{
 use serde::Serialize;
 use tauri::AppHandle;
 
+use crate::local_setup;
+
 pub const RECORDING_ACTIVITY_EVENT: &str = "recording-activity-changed";
 
 #[derive(Clone, Serialize)]
@@ -307,11 +309,8 @@ impl RecorderHandle {
 }
 
 fn activate_prepared_recorder(prepared: &mut RecorderHandle) -> Result<ActiveRecording> {
-    let recordings_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("debug-recordings");
-    fs::create_dir_all(&recordings_dir).context("failed to create recordings directory")?;
+    let recordings_dir = local_setup::default_storage_path().join("recordings");
+    fs::create_dir_all(&recordings_dir).context("failed to create recordings directories")?;
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
