@@ -137,7 +137,7 @@ const softwareJsonLd = {
   image: `${SITE_URL}/og-image.png`,
   downloadUrl: `${SITE_URL}${MAC_DOWNLOAD_REDIRECT_PATH}`,
   softwareVersion: '1.0.0',
-  fileSize: '282MB',
+  fileSize: '352MB',
   offers: [
     {
       '@type': 'Offer',

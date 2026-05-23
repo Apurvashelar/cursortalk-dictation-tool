@@ -24,7 +24,7 @@ export default function MacDownloadRedirectPage() {
         <div className="mt-8 space-y-3 rounded-2xl border border-black/8 bg-black/[0.025] p-5 text-sm text-black/70">
           <p>- Current build: Apple Silicon Mac</p>
           <p>- First launch may show an unverified developer warning</p>
-          <p>- Move the app to Applications, then right-click Open if macOS blocks it</p>
+          <p>- Open the DMG, drag CursorTalk to Applications, then right-click Open if macOS blocks it</p>
         </div>
 
         <a

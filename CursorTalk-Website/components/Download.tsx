@@ -14,7 +14,7 @@ const platforms = [
     name: 'macOS',
     sub: 'Apple Silicon build',
     version: '1.0.0',
-    size: '282 MB',
+    size: '352 MB',
     requires: 'macOS 12+',
     href: MAC_DOWNLOAD_REDIRECT_PATH,
   },
@@ -114,8 +114,9 @@ export function Download() {
           className="text-[12px] text-dim"
         >
           This build is currently unsigned and Apple Silicon only. On first launch,
-          macOS may ask you to right-click the app and choose Open before granting
-          microphone and accessibility permissions.
+          macOS may ask you to open the DMG, drag CursorTalk to Applications, then
+          right-click the app and choose Open before granting microphone and
+          accessibility permissions.
         </motion.p>
       </div>
     </section>
